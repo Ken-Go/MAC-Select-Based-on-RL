@@ -1,24 +1,121 @@
-
 #include "Edge.h"
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("Edge");
 
+NS_OBJECT_ENSURE_REGISTERED(EdgeApp);
+// Edge function
+TypeId 
+EdgeApp::GetTypeId(void){
+    static TypeId tid = TypeId("ns3::EdgeApp")
+        .SetParent<OnOffApplication>()
+        .SetGroupName("Applications")
+        .AddConstructor<EdgeApp>()
+        .AddAttribute("ReportTimeIntervalve",
+                    "the intervalue of report the infomation ",
+                    UintegerValue(32),
+                    MakeUintegerAccessor(&EdgeApp::m_rti),
+                    MakeUintegerChecker<uint16_t > (1,60))
+        .AddAttribute("TDMA",
+                    "Using TDMA?",
+                    BooleanValue(false),
+                    MakeBooleanAccessor(&EdgeApp::m_usingtdma),
+                    MakeBooleanChecker())
+        .AddTraceSource ("Rx", "A packet has been received",
+                     MakeTraceSourceAccessor (&EdgeApp::m_rxTrace),
+                     "ns3::Packet::TracedCallback")
+        .AddTraceSource ("RxWithAddresses", "A packet has been received",
+                     MakeTraceSourceAccessor (&EdgeApp::m_rxTraceWithAddress),
+                     "ns3::Packet::TwoAddressTracedCallback")
+    ;
+    return tid;
+}
+
+EdgeApp::EdgeApp()
+    : m_rti (10),
+      m_avelatency(0),
+      m_usingtdma(false),
+      m_change (false)
+
+{
+    NS_LOG_FUNCTION(this);
+}
+
+EdgeApp::~EdgeApp(){
+    NS_LOG_FUNCTION(this);
+}
+void EdgeApp::ReportOnTime(){
+
+}
+
+double EdgeApp::CalculateLatency(){
+
+}
+
+void EdgeApp::UpdateMacPro(){
+
+}
+
+void EdgeApp::HandleRead (Ptr<Socket> socket){
+    NS_LOG_FUNCTION (this << socket);
+    Ptr<Packet> packet;
+    Address from;
+    Address localAddress;
+    while ((packet = socket->RecvFrom(from)))
+    {
+        socket->GetSockName(localAddress);
+        m_rxTrace (packet);
+        m_rxTraceWithAddress(packet,from,localAddress);
+        if (packet->GetSize () > 0){
+            SeqTsSizeHeader seqTs;
+            packet->RemoveHeader(seqTs);
+            uint32_t currentSequenceNumber = seqTs.GetSeq();
+            uint32_t isChange = seqTs.GetSize ();
+            if (isChange > 0)
+                m_change = true;
+            else
+            {
+                m_change = false;
+            }
+            
+            if (InetSocketAddress::IsMatchingType (from)){
+                NS_LOG_INFO ("TraceDelay: RX " << packet->GetSize () <<
+                           " bytes from "<< InetSocketAddress::ConvertFrom (from).GetIpv4 () <<
+                           " Sequence Number: " << currentSequenceNumber <<
+                           " Uid: " << packet->GetUid () <<
+                           " TXtime: " << seqTs.GetTs () <<
+                           " RXtime: " << Simulator::Now () <<
+                           " Delay: " << Simulator::Now () - seqTs.GetTs ());
+            }
+            else if (Inet6SocketAddress::IsMatchingType(from) > 0){
+                NS_LOG_INFO ("TraceDelay: RX " << packet->GetSize () <<
+                           " bytes from "<< Inet6SocketAddress::ConvertFrom (from).GetIpv6 () <<
+                           " Sequence Number: " << currentSequenceNumber <<
+                           " Uid: " << packet->GetUid () <<
+                           " TXtime: " << seqTs.GetTs () <<
+                           " RXtime: " << Simulator::Now () <<
+                           " Delay: " << Simulator::Now () - seqTs.GetTs ());
+            }
+        }
+    } 
+}
+
+
 int 
 main(int argc, char *argv[])
 {
     uint32_t nodeofAp = 3;
     uint32_t Ap = 3;
-    uint32_t control = 1;
+    // uint32_t control = 1;
     NodeContainer wifiApNodes;
     wifiApNodes.Create(Ap);
     NodeContainer allStaNodes;
     
     std::vector<NodeContainer> wifiStaNodes(Ap);
-    for(int i =0 ; i< wifiStaNodes.size();i++){
+    for(uint32_t i =0 ; i< wifiStaNodes.size();i++){
         wifiStaNodes[i].Create(nodeofAp);
-        for(int j =0;j<nodeofAp;j++){
+        for(uint32_t j =0;j<nodeofAp;j++){
             allStaNodes.Add(wifiStaNodes[i].Get(j));
         }
     }
@@ -54,7 +151,7 @@ main(int argc, char *argv[])
     p2pHelper.SetChannelAttribute("Delay",StringValue("2ms"));
 
     std::vector<NetDeviceContainer> p2pDevices(5);
-    for(int i = 0;i < 5;i++){
+    for(uint32_t i = 0;i < 5;i++){
         p2pDevices[i] = p2pHelper.Install(nodeLinkList[i]);
     }
 
@@ -72,7 +169,7 @@ main(int argc, char *argv[])
                 "ActiveProbing",BooleanValue(false));
 
     std::vector<NetDeviceContainer> staDevices(Ap);
-    for(int i =0;i<Ap;i++){
+    for(uint32_t i =0;i<Ap;i++){
         staDevices[i] = wifi.Install(phy,mac,wifiStaNodes[i]);
     }
     
@@ -111,13 +208,13 @@ main(int argc, char *argv[])
     stack.Install (ControlNode);
     stack.Install (routers);
     Ipv4AddressHelper address;
-    for(int i = 0; i < 5; i++ ){
+    for(uint32_t i = 0; i < 5; i++ ){
         std::ostringstream subset;
         subset<<"10.2"<<i+1<<".0";
         address.SetBase(subset.str().c_str(),"255.255.255.0");
         address.Assign (p2pDevices[i]);
     }
-    for(int i = 0 ; i < Ap;i++){
+    for(uint32_t i = 0 ; i < Ap;i++){
         std::ostringstream subset;
         subset<<"10.1"<<i+1<<".0";
         address.SetBase(subset.str().c_str(),"255.255.255.0");
@@ -132,10 +229,10 @@ main(int argc, char *argv[])
     clientHelper.SetAttribute ("PacketSize",StringValue("1024"));
     clientHelper.SetAttribute ("DataRate",StringValue("5MBps"));
 
-    uint32_t port = 50000;
+    // uint32_t port = 50000;
     std::vector<ApplicationContainer> clientApps(Ap);
-    for(int i= 0;i < Ap;i++){
-        for(int j = 0; j <  staDevices.size();j++){
+    for(uint32_t i= 0;i < Ap;i++){
+        for(uint32_t j = 0; j <  staDevices.size();j++){
             AddressValue  remoteAddress(staDevices[i].Get(j)->GetAddress());
             clientHelper.SetAttribute("remote",remoteAddress);
             clientApps[i] = clientHelper.Install(wifiStaNodes[i].Get(j));
