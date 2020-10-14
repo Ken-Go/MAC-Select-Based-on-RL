@@ -1,7 +1,6 @@
 #include "EdgeApp.h"
 #include "SenseApp.h"
 #include "ControlApp.h"
-#include "EdgeTag.h"
 
 
 using namespace ns3;
@@ -28,16 +27,24 @@ main(int argc, char *argv[])
 
     NodeContainer ControlNode;
     ControlNode.Create(1);
-    
+    NodeContainer ControlLeftNode;
+    ControlLeftNode.Create(1);
+
     NodeContainer routers;
     routers.Create(2);
 
-    std::vector<NodeContainer> nodeLinkList(5); 
-    nodeLinkList[0] = NodeContainer(wifiApNodes.Get(0),routers.Get(0));
-    nodeLinkList[1] = NodeContainer(wifiApNodes.Get(1),routers.Get(0));
-    nodeLinkList[2] = NodeContainer(wifiApNodes.Get(2),routers.Get(1));
-    nodeLinkList[3] = NodeContainer(ControlNode.Get(0),routers.Get(0));
-    nodeLinkList[4] = NodeContainer(ControlNode.Get(0),routers.Get(1));
+    std::vector<NodeContainer> router1Link(2);
+    std::vector<NodeContainer> router2Link(1);
+    std::vector<NodeContainer> ControlLink(2); 
+    std::vector<NodeContainer> ControlLeftLink(3);
+    router1Link[0] = NodeContainer(wifiApNodes.Get(0),routers.Get(0));
+    router1Link[1] = NodeContainer(wifiApNodes.Get(1),routers.Get(0));
+    router2Link[0] = NodeContainer(wifiApNodes.Get(2),routers.Get(1));
+    ControlLink[0] = NodeContainer(ControlNode.Get(0),routers.Get(0));
+    ControlLink[1] = NodeContainer(ControlNode.Get(0),routers.Get(1));
+    ControlLeftLink[0] = NodeContainer(ControlLeftNode.Get(0),wifiApNodes.Get(0));
+    ControlLeftLink[1] = NodeContainer(ControlLeftNode.Get(0),wifiApNodes.Get(2)); 
+    ControlLeftLink[2] = NodeContainer(ControlLeftNode.Get(0),wifiApNodes.Get(3));
     /*
     nodeLinkList[0].Add(wifiApNodes.Get(0));
     nodeLinkList[0].Add(routers.Get(0));
@@ -55,10 +62,22 @@ main(int argc, char *argv[])
     p2pHelper.SetDeviceAttribute("DataRate",StringValue("5Mbps"));
     p2pHelper.SetChannelAttribute("Delay",StringValue("2ms"));
 
-    std::vector<NetDeviceContainer> p2pDevices(5);
-    for(uint32_t i = 0;i < 5;i++){
-        p2pDevices[i] = p2pHelper.Install(nodeLinkList[i]);
+    std::vector<NetDeviceContainer> router1Devices(2);
+    std::vector<NetDeviceContainer> router2Devices(1);
+    std::vector<NetDeviceContainer> ControlDevices(2);
+    std::vector<NetDeviceContainer> ControlLeftDevices(3);
+    for(uint32_t i = 0;i < 2;i++){
+        router1Devices[i] = p2pHelper.Install(router1Link[i]);
     }
+    router2Devices[0] = p2pHelper.Install(router2Link[0]);
+    for(uint32_t i = 0;i < 2;i++){
+        ControlDevices[i] = p2pHelper.Install(ControlLink[i]);
+    }
+    for(uint32_t i = 0;i < 3;i++){
+        ControlLeftDevices[i] = p2pHelper.Install(ControlLeftLink[i]);
+    }
+
+    
 
     YansWifiChannelHelper channel =  YansWifiChannelHelper::Default();
     YansWifiPhyHelper phy = YansWifiPhyHelper::Default();
@@ -111,22 +130,42 @@ main(int argc, char *argv[])
     stack.Install (allStaNodes);
     stack.Install (wifiApNodes);
     stack.Install (ControlNode);
+    stack.Install (ControlLeftNode);
     stack.Install (routers);
+
     Ipv4AddressHelper address;
-    for(uint32_t i = 0; i < 5; i++ ){
-        std::ostringstream subset;
-        subset<<"10.2"<<i+1<<".0";
-        address.SetBase(subset.str().c_str(),"255.255.255.0");
-        address.Assign (p2pDevices[i]);
-    }
-    for(uint32_t i = 0 ; i < Ap;i++){
-        std::ostringstream subset;
+    // for(uint32_t i = 0; i < 5; i++ ){
+    //     std::ostringstream subset;
+    //     subset<<"10.1"<<i+1<<".0";
+    //     address.SetBase(subset.str().c_str(),"255.255.255.0");
+    //     address.Assign (p2pDevices[i]);
+    // }
+    std::ostringstream subset;
+    uint32_t i ;
+    std::vector<Ipv4InterfaceContainer> staInterface(Ap),router1Interfaces(2),router2Interface(1),ControlInterface(2),ControlLeftInterface(3); 
+    Ipv4InterfaceContainer ApInterfaces;
+    for( i = 0 ; i < Ap;i++){
         subset<<"10.1"<<i+1<<".0";
         address.SetBase(subset.str().c_str(),"255.255.255.0");
-        address.Assign (apDevices.Get(i));
-        address.Assign (staDevices[i]);
+        Ipv4InterfaceContainer interface =  address.Assign (apDevices.Get(i));
+        ApInterfaces.Add(interface);
+        staInterface[i] =  address.Assign (staDevices[i]);
+
     }
-    
+    subset<<"10.1"<<i+1<<".0";
+    address.SetBase(subset.str().c_str(),"255.255.255.0");
+    for(int i =0;i < 2;i++){
+        ControlInterface[i] =  address.Assign(ControlDevices[i]);
+    }
+    for(int i =0 ;i <3 ;i++){
+        ControlLeftInterface[i] = address.Assign(ControlLeftDevices[i]);
+    }
+     for(int i =0;i < 2;i++){
+        router1Interfaces[i] =  address.Assign(router1Devices[i]);
+    }
+    router2Interface[0] = address.Assign(router2Devices[0]);
+
+
 
     OnOffHelper clientHelper("ns3::TcpSocketFactory",Address());
     clientHelper.SetAttribute ("OnTime", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=10.0]"));  

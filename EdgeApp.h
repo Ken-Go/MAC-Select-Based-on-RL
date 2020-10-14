@@ -3,8 +3,11 @@
 #include "ns3/traced-callback.h"
 #include "ns3/event-id.h"
 #include "ns3/ptr.h"
+#include "ns3/node.h"
 #include "ns3/address.h"
+#include "ns3/simple-wireless-tdma-module.h"
 #include "ns3/traced-callback.h"
+#include "EdgeTag.h"
 
 #include <iostream>
 #include <fstream>
@@ -21,7 +24,7 @@ public:
     virtual ~EdgeApp();
     void ReportOnTime();
     double CalculateLatency();
-    void UpdateMacPro();
+    void UpdateMacPro(NodeContainer nodes,NetDeviceContainer devices,int index,double txpDistance);
     
     u_int16_t m_rti; //Report time interval;
     u_int32_t m_avelatency;//Average latency;
@@ -89,10 +92,32 @@ void EdgeApp::ReportOnTime(){
 double EdgeApp::CalculateLatency(){
 
 }
-
-void EdgeApp::UpdateMacPro(){
-
+void 
+Node::DoDispose(){
+    NS_LOG_FUNCTION (this);
+    m_deviceAdditionListeners.clear ();
+    m_handlers.clear ();
+    for (std::vector<Ptr<NetDevice> >::iterator i = m_devices.begin ();i != m_devices.end (); i++)
+    {
+       Ptr<NetDevice> device = *i;
+       device->Dispose ();
+       *i = 0;
+    }
+    m_devices.clear ();
 }
+void EdgeApp::UpdateMacPro(OnOffHelper helper,int index){
+    if(m_change){
+        
+        if(m_usingtdma){
+            
+        }else{
+            
+            m_usingtdma = false;
+        }
+    }
+}
+
+
 
 void EdgeApp::HandleRead (Ptr<Socket> socket){
     NS_LOG_FUNCTION (this << socket);
@@ -105,33 +130,22 @@ void EdgeApp::HandleRead (Ptr<Socket> socket){
         m_rxTrace (packet);
         m_rxTraceWithAddress(packet,from,localAddress);
         if (packet->GetSize () > 0){
-            SeqTsSizeHeader seqTs;
-            packet->RemoveHeader(seqTs);
-            uint32_t currentSequenceNumber = seqTs.GetSeq();
-            uint32_t isChange = seqTs.GetSize ();
-            if (isChange > 0)
-                m_change = true;
-            else
-            {
-                m_change = false;
-            }
-            if (InetSocketAddress::IsMatchingType (from)){
-                NS_LOG_INFO ("TraceDelay: RX " << packet->GetSize () <<
-                           " bytes from "<< InetSocketAddress::ConvertFrom (from).GetIpv4 () <<
-                           " Sequence Number: " << currentSequenceNumber <<
-                           " Uid: " << packet->GetUid () <<
-                           " TXtime: " << seqTs.GetTs () <<
-                           " RXtime: " << Simulator::Now () <<
-                           " Delay: " << Simulator::Now () - seqTs.GetTs ());
-            }
-            else if (Inet6SocketAddress::IsMatchingType(from) > 0){
-                NS_LOG_INFO ("TraceDelay: RX " << packet->GetSize () <<
-                           " bytes from "<< Inet6SocketAddress::ConvertFrom (from).GetIpv6 () <<
-                           " Sequence Number: " << currentSequenceNumber <<
-                           " Uid: " << packet->GetUid () <<
-                           " TXtime: " << seqTs.GetTs () <<
-                           " RXtime: " << Simulator::Now () <<
-                           " Delay: " << Simulator::Now () - seqTs.GetTs ());
+            EdgeTag tag;
+            packet->PeekPacketTag(tag);
+            if (tag.GetTagValue() == 0) {
+                NS_LOG_INFO("it is a data packet" + tag.GetTagValue());
+            }else{
+                NS_LOG_INFO("it is a control packet" + tag.GetTagValue());
+                SeqTsSizeHeader seqTs;
+                packet->RemoveHeader(seqTs);
+                uint32_t currentSequenceNumber = seqTs.GetSeq();
+                uint32_t isChange = seqTs.GetSize ();
+                if (isChange > 0)
+                    m_change = true;
+                else
+                {
+                    m_change = false;
+                }
             }
         }
     } 
