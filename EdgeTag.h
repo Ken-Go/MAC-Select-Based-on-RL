@@ -5,7 +5,7 @@
 
  using namespace ns3;
 
-//EdgeTag: "0": data packet, "1":control packet
+//EdgeTag: "0": data packet, "1": uplink matrics packet,"2":control packet,"3":download matrics packet
 class EdgeTag : public Tag
 {
 public:
