@@ -42,13 +42,14 @@ private:
     uint64_t m_upTime;                  //millseconds
     std::vector<bool> m_updates;
     uint32_t m_tolerate;
+    uint32_t m_index;
 
     virtual void StartApplication(void);
     virtual void StopApplication(void);
     void ScheduleSend(void);
     void ScheduleUpdate(void);
     void HandleRead (Ptr<Socket> socket);
-    void Setup(std::vector<Ptr<Socket>> sockets,Ptr<Socket> tofather,std::vector<Address> childrenAddress,Address local,uint32_t childnum);
+    void Setup(std::vector<Ptr<Socket>> sockets,Ptr<Socket> tofather,std::vector<Address> childrenAddress,Address local,uint32_t childnum,uint32_t index);
     void SendMetrics();
     void Update();
     bool collectAll();
@@ -93,7 +94,8 @@ SenseApp::SenseApp()
       m_info(0),
       m_upTime(0),
       m_updates(),         //all node metrics is update?
-      m_tolerate(1)
+      m_tolerate(1),
+      m_index(0)
 {
 
 }
@@ -101,7 +103,7 @@ SenseApp::~SenseApp(){
 
 }
 void
-SenseApp::Setup(std::vector<Ptr<Socket>> sockets,Ptr<Socket> tofather,std::vector<Address> childrenAddress,Address local,uint32_t childnum){
+SenseApp::Setup(std::vector<Ptr<Socket>> sockets,Ptr<Socket> tofather,std::vector<Address> childrenAddress,Address local,uint32_t childnum,uint32_t index){
     m_local = local;
     m_socketsTofather = tofather;
     // m_sockets.insert(m_sockets.end(),sockets.begin(),sockets.end());
@@ -113,6 +115,7 @@ SenseApp::Setup(std::vector<Ptr<Socket>> sockets,Ptr<Socket> tofather,std::vecto
     for(uint32_t i; i < childnum ;i++){
         m_updates[i] = false;
     }
+    m_index = index;
 };
 
 void
@@ -232,13 +235,21 @@ SenseApp::SendMetrics()
         EdgeTag tag;
         tag.SetTagValue(1);
         pac->AddPacketTag(tag);
+        SeqTsSizeHeader index;
+        index.SetSeq(m_index);
+        pac->AddHeader(index);
         SeqTsSizeHeader nums;
         nums.SetSeq(m_childNum);
         pac->AddHeader(nums);
         std::vector<SeqTsSizeHeader> headers(m_childNum);
-        for(uint32_t i;i < m_childNum;i++){
-            headers[i].SetSeq(m_metrics[i]);
+        std::vector<SeqTsSizeHeader> headers_usingtdma(m_childNum);
+        for(uint32_t i = 0;i < m_childNum;i++){
+            headers[i].SetSeq(m_metrics[i]);  
             pac->AddHeader(headers[i]);
+        }
+        for(uint32_t i = 0;i < m_childNum;i++){
+            headers_usingtdma[i].SetSeq(m_usingtdmas[i]);
+            pac->AddHeader(headers_usingtdma[i]);
         }
         m_socketsTofather->Send(pac,0);
     }else{
