@@ -43,6 +43,7 @@ private:
     std::vector<bool> m_updates;
     uint32_t m_tolerate;
     uint32_t m_index;
+    std::vector<uint32_t> m_actions;
 
     virtual void StartApplication(void);
     virtual void StopApplication(void);
@@ -53,6 +54,7 @@ private:
     void SendMetrics();
     void Update();
     bool collectAll();
+    void SendToChild(Ptr<Socket> socket,uint32_t index,Address To,uint32_t Tag_Value);
 };
 NS_OBJECT_ENSURE_REGISTERED(SenseApp);
 
@@ -95,7 +97,8 @@ SenseApp::SenseApp()
       m_upTime(0),
       m_updates(),         //all node metrics is update?
       m_tolerate(1),
-      m_index(0)
+      m_index(0),
+      m_actions()
 {
 
 }
@@ -116,6 +119,7 @@ SenseApp::Setup(std::vector<Ptr<Socket>> sockets,Ptr<Socket> tofather,std::vecto
         m_updates[i] = false;
     }
     m_index = index;
+    m_actions.resize(m_childNum,0);
 };
 
 void
@@ -141,6 +145,18 @@ SenseApp::StartApplication(void){
 void
 SenseApp::StopApplication(void){
 
+}
+
+void
+SenseApp::SendToChild(Ptr<Socket> socket,uint32_t index,Address To,uint32_t tag_value){
+    Ptr<Packet> packet = Create<Packet>(0);
+    EdgeTag tag;
+    tag.SetTagValue(tag_value);
+    packet->AddPacketTag(tag);
+    SeqTsSizeHeader action;
+    action.SetSeq(m_actions[index]);
+    packet->AddHeader(action);
+    socket->SendTo(packet,0,To);
 }
 
 void
@@ -189,7 +205,15 @@ SenseApp::HandleRead(Ptr<Socket> socket)
                 
             }else if(tag.GetTagValue() == 3) //download metrics packet
             {
-
+                SeqTsSizeHeader nums;
+                packet->RemoveHeader(nums);
+                uint32_t m_nums= nums.GetSeq();
+                std::vector<SeqTsSizeHeader> headers(m_nums);
+                for(uint32_t i =0;i < m_nums;i++){
+                    packet->RemoveHeader(headers[i]);
+                    m_actions[i] = headers[i].GetSeq();
+                    SendToChild(m_sockets[i],i,m_childs[i],2);
+                }            
             }
         }
 
@@ -257,3 +281,4 @@ SenseApp::SendMetrics()
         m_temp = Simulator::Schedule(tNext,&SenseApp::SendMetrics,this);
     }
 }
+

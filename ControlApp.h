@@ -202,7 +202,7 @@ ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t
     EdgeTag tag;
     tag.SetTagValue(3);
     packet->AddPacketTag(tag);
-    SeqTsHeader nums;
+    SeqTsSizeHeader nums;
     nums.SetSeq(m_edgenum);
     packet->AddHeader(nums);
     std::vector<SeqTsSizeHeader> headers(m_edgenum);
@@ -219,7 +219,7 @@ ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t
     EdgeTag tag;
     tag.SetTagValue(3);
     packet->AddPacketTag(tag);
-    SeqTsHeader nums;
+    SeqTsSizeHeader nums;
     nums.SetSeq(m_edgenum);
     packet->AddHeader(nums);
     std::vector<SeqTsSizeHeader> headers(m_edgenum);

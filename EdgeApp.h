@@ -304,7 +304,9 @@ void EdgeApp::HandleRead (Ptr<Socket> socket){
                 CalculateRTT(header.GetData(),time.GetMilliSeconds());
                 m_count++;
                 m_avelatency = m_avelatency + m_latencyNow;
-            }else{
+            }else if(tag.GetTagValue() == 1){  // uplink metrics packet
+              
+            }else if (tag.GetTagValue() == 2 ){ //download control packet
                 // NS_LOG_INFO("it is a control packet" + tag.GetTagValue());
                 SeqTsSizeHeader seqTs;
                 packet->RemoveHeader(seqTs);
@@ -315,6 +317,8 @@ void EdgeApp::HandleRead (Ptr<Socket> socket){
                 {
                     m_change = false;
                 }
+            }else if(tag.GetTagValue() == 3){   // download metrics packet
+                
             }
         }
     } 
