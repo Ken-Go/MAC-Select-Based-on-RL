@@ -30,18 +30,20 @@ public:
     virtual ~Control1App();
     void Setup(Ptr<Socket> sockets,std::vector<Ipv4InterfaceContainer> children,Address local,uint32_t m_childnum);
 private:
-    std::vector<uint32_t> m_periods;
+    uint32_t m_periods;
     std::vector<bool> m_reports;
     std::vector<uint32_t> m_rti;
     Ptr<Socket> m_sockets;
     Address m_local;
     std::vector<Ipv4InterfaceContainer> m_childs;
     uint32_t m_childnum;
-
+    EventId m_periodBroad;
+    void broadcast();
+    void ScheduleBroadcast();
     virtual void StartApplication(void);
     virtual void StopApplication(void);
     void HandleRead(Ptr<Socket> socket);
-   
+    
     void SendControl(uint32_t addindex);
 };
 TypeId
@@ -79,6 +81,9 @@ Control1App::Setup(Ptr<Socket> sockets,std::vector<Ipv4InterfaceContainer> child
     m_childs.assign(children.begin(),children.end());
     m_local = local;
     m_childnum = childnum;
+    m_periods = 20;
+    m_reports.resize(m_childnum,true);
+    m_rti.resize(m_childnum,5);
 }
 
 void
@@ -88,6 +93,7 @@ Control1App::StartApplication(void){
     }else{
         m_sockets->Bind();
     }
+    broadcast();
     m_sockets->SetRecvCallback(MakeCallback(&Control1App::HandleRead,this));
 }
 void
@@ -116,6 +122,19 @@ Control1App::HandleRead(Ptr<Socket> socket)
         }
     }
 }
+void
+Control1App::ScheduleBroadcast(){
+    Time tNext (Seconds (m_periods));
+    m_periodBroad = Simulator::Schedule(tNext,&Control1App::broadcast,this);
+}
+void 
+Control1App::broadcast()
+{
+    for(uint32_t i =0; i < m_childnum;i++){
+        SendControl(i);
+    }
+    ScheduleBroadcast();
+}
 void 
 Control1App::SendControl(uint32_t addindex)
 {
@@ -123,8 +142,7 @@ Control1App::SendControl(uint32_t addindex)
     EdgeTag tag;
     tag.SetTagValue(2);
     packet->AddPacketTag(tag);
-    SeqTsSizeHeader period;
-    period.SetSeq(m_periods[addindex]);
+
     SeqTsSizeHeader rti;
     rti.SetSeq(m_rti[addindex]);
     SeqTsSizeHeader report;
@@ -134,7 +152,6 @@ Control1App::SendControl(uint32_t addindex)
     {
         report.SetSeq(0);
     }
-    packet->AddHeader(period);
     packet->AddHeader(rti);
     packet->AddHeader(report);
     m_sockets->SendTo(packet,0,m_childs[addindex].GetAddress(0));

@@ -20,13 +20,14 @@ class SenseApp : public Application{
 public:
     static TypeId GetTypeId(void);
     SenseApp();
-    void Setup(Ptr<Socket> socket,Ipv4InterfaceContainer childrenAddress,Address local,uint32_t childnum,uint32_t index);
+    void Setup(Ptr<Socket> socket,Ipv4InterfaceContainer childrenAddress,Address local,Address fatherControlL,Address fatherControl,uint32_t childnum,uint32_t index);
     virtual ~SenseApp();
     void SenseEnv();
 private:
     Ptr<Socket>                  m_socket;
     Ipv4InterfaceContainer       m_childs;
-    Address         m_father;
+    Address         m_fatherControlL;
+    Address         m_fatherControl;
     Address         m_local;
     EventId         m_sendEvent;
     EventId         m_updateEvent;
@@ -50,7 +51,7 @@ private:
     void ScheduleSend(void);
     void ScheduleUpdate(void);
     void HandleRead (Ptr<Socket> socket);
-   
+    void ResetUpdate();
     void SendMetrics();
     void Update();
     bool collectAll();
@@ -81,14 +82,15 @@ SenseApp::GetTypeId(void){
 SenseApp::SenseApp()
     : m_socket(),
       m_childs(),
-      m_father(),
+      m_fatherControlL(),
+      m_fatherControl(),
       m_local(),
       m_sendEvent(),
       m_updateEvent(),
       m_temp(),
       m_metrics(),
       m_usingtdmas(),
-      m_rti(2),
+      m_rti(5),
       m_period(10),        // report period
       m_report(true),   //is report
       m_childNum(0),    //child nums 
@@ -105,7 +107,7 @@ SenseApp::~SenseApp(){
 
 }
 void
-SenseApp::Setup(Ptr<Socket> socket,Ipv4InterfaceContainer childrenAddress,Address local,uint32_t childnum,uint32_t index){
+SenseApp::Setup(Ptr<Socket> socket,Ipv4InterfaceContainer childrenAddress,Address local,Address fatherControlL,Address fatherControl,uint32_t childnum,uint32_t index){
     m_local = local;
     m_socket = socket;
     m_childs = childrenAddress;
@@ -114,8 +116,13 @@ SenseApp::Setup(Ptr<Socket> socket,Ipv4InterfaceContainer childrenAddress,Addres
     for(uint32_t i; i < childnum ;i++){
         m_updates[i] = false;
     }
+    m_fatherControl = fatherControl;
+    m_fatherControlL = fatherControlL;
     m_index = index;
     m_actions.resize(m_childNum,0);
+    m_usingtdmas.resize(m_childNum,false);
+    m_metrics.resize(m_childNum,0);
+    
 };
 
 void
@@ -125,7 +132,7 @@ SenseApp::StartApplication(void){
     }else{
        m_socket->Bind();
     }
-    Update();
+    // Update();
     SendMetrics();
 }
 
@@ -207,21 +214,21 @@ SenseApp::HandleRead(Ptr<Socket> socket)
     }
 }
 
-void
-SenseApp::Update()
-{
-    Ptr<Packet> packet = Create<Packet>(0);
-    EdgeTag tag;
-    tag.SetTagValue(0);
-    m_socket->SendTo(packet,0,m_father);
-}
+// void
+// SenseApp::Update()
+// {
+//     Ptr<Packet> packet = Create<Packet>(0);
+//     EdgeTag tag;
+//     tag.SetTagValue(0);
+//     m_socket->SendTo(packet,0,m_father);
+// }
 
-void
-SenseApp::ScheduleUpdate(void)
-{
-    Time tNext (Seconds (m_period));
-    m_updateEvent = Simulator::Schedule(tNext,&SenseApp::Update,this);
-}
+// void
+// SenseApp::ScheduleUpdate(void)
+// {
+//     Time tNext (Seconds (m_period));
+//     m_updateEvent = Simulator::Schedule(tNext,&SenseApp::Update,this);
+// }
 void
 SenseApp::ScheduleSend(void)
 {
@@ -235,6 +242,12 @@ SenseApp::collectAll(){
             return false;
     }
     return true;
+}
+void 
+SenseApp::ResetUpdate(){
+    for(uint32_t i = 0;i < m_childNum;i++){
+        m_updates[i] = false;
+    }
 }
 void
 SenseApp::SendMetrics()
@@ -262,7 +275,9 @@ SenseApp::SendMetrics()
             headers_usingtdma[i].SetSeq(m_usingtdmas[i]);
             pac->AddHeader(headers_usingtdma[i]);
         }
-        m_socket->SendTo(pac,0,m_father);
+        m_socket->SendTo(pac,0,m_fatherControl);
+        ResetUpdate();
+        ScheduleSend();
     }else{
         Time tNext(Seconds (m_tolerate));
         m_temp = Simulator::Schedule(tNext,&SenseApp::SendMetrics,this);

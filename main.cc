@@ -204,21 +204,30 @@ main(int argc, char *argv[])
     std::vector<Ptr<SenseApp> > SenseApps;
     for(i = 0; i < Ap;i++){
         Ptr<SenseApp> senseapp = CreateObject<SenseApp> ();
-        senseapp->Setup(ApSockets[i],staInterface[i],InetSocketAddress(ApInterfaces.GetAddress(i)),nodeofAp,i);
+        senseapp->Setup(ApSockets[i],staInterface[i],
+                        InetSocketAddress(ApInterfaces.GetAddress(i)),
+                        InetSocketAddress(ControlLeftInterface[0].GetAddress(0)),
+                        InetSocketAddress(ControlInterface[0].GetAddress(0)),
+                        nodeofAp,i);
         senseapp->SetAttribute("Local",AddressValue(InetSocketAddress(ApInterfaces.GetAddress(i))));
         SenseApps.push_back(senseapp);
         wifiApNodes.Get(i)->AddApplication(senseapp);
     }
+    
     //ControlApp
     Ptr<Control1App> controlLApp = CreateObject<Control1App>();
     controlLApp->SetAttribute("Local",AddressValue(InetSocketAddress(ControlLeftInterface[0].GetAddress(0))));
-    controlLApp->Setup(ControlLSocket,ControlLeftInterface,InetSocketAddress(ControlLeftInterface[0].GetAddress(0)),Ap);
+    controlLApp->Setup(ControlLSocket,
+                    ControlLeftInterface,
+                    InetSocketAddress(ControlLeftInterface[0].GetAddress(0)),Ap);
     ControlLeftNode.Get(0)->AddApplication(controlLApp);
     
 
     Ptr<ControlApp> controlApp = CreateObject<ControlApp> ();
     controlApp->SetAttribute("Local",AddressValue(InetSocketAddress(ControlInterface[0].GetAddress(0))));
-    controlApp->Setup(ControlSocket,ControlInterface,Ap,nodeofAp,Ap*nodeofAp,InetSocketAddress(ControlInterface[0].GetAddress(0)));
+    controlApp->Setup(ControlSocket,
+                    ControlInterface,Ap,nodeofAp,Ap*nodeofAp,
+                    InetSocketAddress(ControlInterface[0].GetAddress(0)));
     ControlNode.Get(0)->AddApplication(controlApp);
 
     Ipv4GlobalRoutingHelper::PopulateRoutingTables();   

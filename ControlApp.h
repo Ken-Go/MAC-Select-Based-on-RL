@@ -26,7 +26,8 @@ using namespace ns3;
 
 class QLearn{
 public:
-    QLearn(); 
+    QLearn();
+    uint32_t last_metrics;
     uint32_t states;
     uint32_t actions;
     uint32_t now_state;
@@ -129,6 +130,7 @@ private:
     std::vector<std::vector<QLearn*> >  m_qlearns;
     std::vector<std::vector<uint32_t> >  m_metrics;
     std::vector<std::vector<uint32_t> > m_states;
+    std::vector<std::vector<uint32_t> > m_lastMetrics;
     uint32_t m_apnum;
     uint32_t m_edgenum;
     uint32_t m_allnum;
@@ -195,23 +197,23 @@ ControlApp::Setup(Ptr<Socket> sockets,std::vector<Ipv4InterfaceContainer> childs
         }
     }
 }
-void
-ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t> state){
-    Ptr<Packet> packet = Create<Packet>(0);
-    EdgeTag tag;
-    tag.SetTagValue(3);
-    packet->AddPacketTag(tag);
-    SeqTsSizeHeader nums;
-    nums.SetSeq(m_edgenum);
-    packet->AddHeader(nums);
-    std::vector<SeqTsSizeHeader> headers(m_edgenum);
-    for(uint32_t i; i < m_edgenum;i++){
-        m_qlearns[apIndex][i]->get_env_feedback(state[i],0);
-        headers[i].SetSeq(m_qlearns[apIndex][i]->choose_action());
-        packet->AddHeader(headers[i]);
-    }
-    socket->Send(packet,0);
-}
+// void
+// ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t> state){
+//     Ptr<Packet> packet = Create<Packet>(0);
+//     EdgeTag tag;
+//     tag.SetTagValue(3);
+//     packet->AddPacketTag(tag);
+//     SeqTsSizeHeader nums;
+//     nums.SetSeq(m_edgenum);
+//     packet->AddHeader(nums);
+//     std::vector<SeqTsSizeHeader> headers(m_edgenum);
+//     for(uint32_t i; i < m_edgenum;i++){
+//         m_qlearns[apIndex][i]->get_env_feedback(state[i],0);
+//         headers[i].SetSeq(m_qlearns[apIndex][i]->choose_action());
+//         packet->AddHeader(headers[i]);
+//     }
+//     socket->Send(packet,0);
+// }
 void
 ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t> state,Address from){
     Ptr<Packet> packet = Create<Packet>(0);
@@ -223,7 +225,7 @@ ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t
     packet->AddHeader(nums);
     std::vector<SeqTsSizeHeader> headers(m_edgenum);
     for(uint32_t i; i < m_edgenum;i++){
-        m_qlearns[apIndex][i]->get_env_feedback(state[i],0);
+        ??get env   back ???
         headers[i].SetSeq(m_qlearns[apIndex][i]->choose_action());
         packet->AddHeader(headers[i]);
     }
@@ -231,7 +233,6 @@ ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t
 }
 void
 ControlApp::StartApplication(void){
-
         if(!m_local.IsInvalid()){
             m_sockets->Bind(m_local);
         }else

@@ -64,7 +64,7 @@ private:
     bool m_change; // is change?
     bool m_report;
     uint32_t m_metrxType; // 1:latency 2:throughput 3:latency and throughput
-    uint32_t m_childnum;
+    uint32_t m_childIndex;
     Ipv4InterfaceContainer m_interfaces;
     uint32_t m_interfaceIndex;
 };
@@ -82,16 +82,6 @@ EdgeApp::GetTypeId(void){
         .SetParent<Application>()
         .SetGroupName("Applications")
         .AddConstructor<EdgeApp>()
-        .AddAttribute("ReportTimeIntervalve",
-                    "the intervalue of report the infomation ",
-                    UintegerValue(1),
-                    MakeUintegerAccessor(&EdgeApp::m_rti),
-                    MakeUintegerChecker<uint16_t > (1,60))
-        .AddAttribute("TDMA",
-                    "Using TDMA?",
-                    BooleanValue(false),
-                    MakeBooleanAccessor(&EdgeApp::m_usingtdma),
-                    MakeBooleanChecker())
         .AddTraceSource ("Rx", "A packet has been received",
                      MakeTraceSourceAccessor (&EdgeApp::m_rxTrace),
                      "ns3::Packet::TracedCallback")
@@ -148,7 +138,7 @@ EdgeApp::EdgeApp()
       m_change (false),
       m_report(false),
       m_metrxType(1),
-      m_childnum(0),
+      m_childIndex(0),
       m_interfaces(),
       m_interfaceIndex(0)
 {
@@ -158,16 +148,16 @@ EdgeApp::~EdgeApp(){
   
 }
  void
- EdgeApp::Setup (Ipv4InterfaceContainer interfaces,uint32_t interfaceIndex,Ptr<Socket> socket, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum)
+ EdgeApp::Setup (Ipv4InterfaceContainer interfaces,uint32_t interfaceIndex,Ptr<Socket> socket, Address peeraddress, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum)
  {
    m_interfaces = interfaces;
    m_interfaceIndex = interfaceIndex;
    m_socket = socket;
-   m_peer = address;
+   m_peer = peeraddress;
    m_packetSize = packetSize;
    m_nPackets = nPackets;
    m_dataRate = dataRate;
-   m_childnum = childnum;
+   m_childIndex = childnum;
  }
  
 void EdgeApp::StartApplication(void){
@@ -178,33 +168,23 @@ void EdgeApp::StartApplication(void){
     else
         m_socket->Bind();
     m_socket->Connect (m_peer);
-    
+    m_socket->SetRecvCallback(MakeCallback (&EdgeApp::HandleRead,this));
     if(m_report)
         ReportOnTime();
     SendPacket ();
-   
 }
 void EdgeApp::StopApplication(void){
     m_running = false;
     if(m_sendEvent.IsRunning ()){
         Simulator::Cancel(m_sendEvent);
     }
-    if(m_socket){
-        m_socket->Close();
-    }
-    m_socket->SetRecvCallback(MakeCallback (&EdgeApp::HandleRead,this));
 }
 void EdgeApp::SendPacket(void){
     Ptr<Packet> packet = Create<Packet> (m_packetSize);
-    std::cout<<"send packet at "<<Simulator::Now().GetSeconds()<<std::endl;
-    // if((uint64_t)Simulator::Now().GetSeconds() %  m_rti == 0){
-    //     SeqTsSizeHeader header;
-    //     header.SetSeq(m_avelatency);
-    //     packet->AddHeader(header);
-    // }
-    // set data tag
+    std::cout<<"EdgeNode "<<m_childIndex<<" send packet at "<<Simulator::Now().GetSeconds()<<std::endl;
+    // set data tag : 0 data,1 up metrics,2 download control,3 download metrics
     EdgeTag tag;
-    tag.SetTagValue(0);
+    tag.SetTagValue(0); 
     packet->AddPacketTag(tag);
     // set time header now
     TimeHeader header;
@@ -236,10 +216,14 @@ void EdgeApp::ReportOnTime(){
     packet->AddPacketTag(tag);
     
     SeqTsSizeHeader  nodeNum;
-    nodeNum.SetSeq(m_childnum);
+    nodeNum.SetSeq(m_childIndex);
     //add metrics header
     SeqTsSizeHeader metrics;
-    metrics.SetSeq(m_avelatency / m_count);
+    if(m_count == 0){
+       metrics.SetSeq(0); 
+    }else{
+        metrics.SetSeq(m_avelatency / m_count);
+    }
     //add suingtdma header
     SeqTsSizeHeader usingtdma;
     if(m_usingtdma)
@@ -250,6 +234,9 @@ void EdgeApp::ReportOnTime(){
     packet->AddHeader(metrics);
     packet->AddHeader(usingtdma);
     m_socket->Send(packet);
+    //reset 
+    m_avelatency = 0;
+    m_count = 0;
     if((uint32_t)Simulator::Now().GetSeconds() % m_rti == 0 || Simulator::Now().GetSeconds() == 0){
         // scheduleRe();
         std::cout<<"the time is "<<Simulator::Now().GetSeconds()<<" s"<<std::endl;
@@ -302,15 +289,14 @@ void EdgeApp::HandleRead (Ptr<Socket> socket){
                 //ischange
                 SeqTsSizeHeader seqTs;
                 packet->RemoveHeader(seqTs);
-                uint32_t firstL = seqTs.GetSeq();
-                std::cout<<firstL<<std::endl;
+                uint32_t firstUpTime = seqTs.GetSeq();
                 //reciv time
                 TimeHeader header;
                 packet->RemoveHeader(header);
                 Time time(Simulator::Now());
                 CalculateRTT(header.GetData(),time.GetMilliSeconds());
                 m_count++;
-                m_avelatency = m_avelatency + m_latencyNow;
+                m_avelatency = m_avelatency + m_latencyNow + firstUpTime;
             }else if(tag.GetTagValue() == 1){  // uplink metrics packet
               
             }else if (tag.GetTagValue() == 2 ){ //download control packet
