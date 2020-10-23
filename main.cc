@@ -1,7 +1,9 @@
 #include "EdgeApp.h"
 #include "SenseApp.h"
+#include "Control1App.h"
 #include "ControlApp.h"
-
+#include "ns3/simple-wireless-tdma-module.h"
+#include "ns3/internet-module.h"
 
 using namespace ns3;
 
@@ -43,8 +45,8 @@ main(int argc, char *argv[])
     ControlLink[0] = NodeContainer(ControlNode.Get(0),routers.Get(0));
     ControlLink[1] = NodeContainer(ControlNode.Get(0),routers.Get(1));
     ControlLeftLink[0] = NodeContainer(ControlLeftNode.Get(0),wifiApNodes.Get(0));
-    ControlLeftLink[1] = NodeContainer(ControlLeftNode.Get(0),wifiApNodes.Get(2)); 
-    ControlLeftLink[2] = NodeContainer(ControlLeftNode.Get(0),wifiApNodes.Get(3));
+    ControlLeftLink[1] = NodeContainer(ControlLeftNode.Get(0),wifiApNodes.Get(1)); 
+    ControlLeftLink[2] = NodeContainer(ControlLeftNode.Get(0),wifiApNodes.Get(2));
     /*
     nodeLinkList[0].Add(wifiApNodes.Get(0));
     nodeLinkList[0].Add(routers.Get(0));
@@ -157,35 +159,69 @@ main(int argc, char *argv[])
     for(int i =0;i < 2;i++){
         ControlInterface[i] =  address.Assign(ControlDevices[i]);
     }
-    for(int i =0 ;i <3 ;i++){
+    for(int i = 0 ;i < 3 ;i++){
         ControlLeftInterface[i] = address.Assign(ControlLeftDevices[i]);
     }
-     for(int i =0;i < 2;i++){
+    for(int i =0;i < 2;i++){
         router1Interfaces[i] =  address.Assign(router1Devices[i]);
     }
     router2Interface[0] = address.Assign(router2Devices[0]);
-
-
-
-    OnOffHelper clientHelper("ns3::TcpSocketFactory",Address());
-    clientHelper.SetAttribute ("OnTime", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=10.0]"));  
-    clientHelper.SetAttribute ("OffTime", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=10.0]"));
-    clientHelper.SetAttribute ("PacketSize",StringValue("1024"));
-    clientHelper.SetAttribute ("DataRate",StringValue("5MBps"));
-
-    // uint32_t port = 50000;
-    std::vector<ApplicationContainer> clientApps(Ap);
-    for(uint32_t i= 0;i < Ap;i++){
-        for(uint32_t j = 0; j <  staDevices.size();j++){
-            AddressValue  remoteAddress(staDevices[i].Get(j)->GetAddress());
-            clientHelper.SetAttribute("remote",remoteAddress);
-            clientApps[i] = clientHelper.Install(wifiStaNodes[i].Get(j));
-        }
-    }
-
-    Ipv4GlobalRoutingHelper::PopulateRoutingTables();
     
 
+    //CreateSocket
+    std::vector<Ptr<Socket> > ApSockets;
+    std::vector<std::vector<Ptr<Socket>> > Stasockets;
+    Stasockets.resize(Ap);
+    for(i = 0; i < Ap;i++){
+        Ptr<Socket> ns3TcpSocket = Socket::CreateSocket(wifiApNodes.Get(i),TcpSocketFactory::GetTypeId ());
+        ApSockets.push_back(ns3TcpSocket);
+    }
 
-   return 0;
+    for(i = 0; i < Ap;i++){
+        for(uint32_t j  = 0; j < nodeofAp;j++){
+            Ptr<Socket> ns3TcpSocket = Socket::CreateSocket(wifiStaNodes[i].Get(j),TcpSocketFactory::GetTypeId ());
+            Stasockets[i].push_back(ns3TcpSocket);
+        }
+    }
+    Ptr<Socket> ControlLSocket = Socket::CreateSocket(ControlLeftNode.Get(0),TcpSocketFactory::GetTypeId ());
+    Ptr<Socket> ControlSocket = Socket::CreateSocket(ControlNode.Get(0),TcpSocketFactory::GetTypeId ());    
+    
+    //EdgeApp
+    std::vector<std::vector<Ptr<EdgeApp>> > StaApps;
+    StaApps.resize(Ap);
+    for(i = 0; i < Ap;i++){
+        for(uint32_t j = 0; j < nodeofAp; j++){
+            Ptr<EdgeApp> app = CreateObject<EdgeApp> ();
+            app->Setup(staInterface[i],j,Stasockets[i][j],ApInterfaces.GetAddress(i),1024,1024,DataRate("1Mbps"),j);
+            app->SetAttribute("Local",AddressValue(InetSocketAddress(staInterface[i].GetAddress(j))));
+            wifiStaNodes[i].Get(j)->AddApplication(app);
+            StaApps[i].push_back(app);
+            app->SetStartTime(Seconds(0.));
+            app->SetStopTime(Seconds(5.));
+        }
+    }
+    //SenseApp
+    std::vector<Ptr<SenseApp> > SenseApps;
+    for(i = 0; i < Ap;i++){
+        Ptr<SenseApp> senseapp = CreateObject<SenseApp> ();
+        senseapp->Setup(ApSockets[i],staInterface[i],InetSocketAddress(ApInterfaces.GetAddress(i)),nodeofAp,i);
+        senseapp->SetAttribute("Local",AddressValue(InetSocketAddress(ApInterfaces.GetAddress(i))));
+        SenseApps.push_back(senseapp);
+        wifiApNodes.Get(i)->AddApplication(senseapp);
+    }
+    //ControlApp
+    Ptr<Control1App> controlLApp = CreateObject<Control1App>();
+    controlLApp->SetAttribute("Local",AddressValue(InetSocketAddress(ControlLeftInterface[0].GetAddress(0))));
+    controlLApp->Setup(ControlLSocket,ControlLeftInterface,InetSocketAddress(ControlLeftInterface[0].GetAddress(0)),Ap);
+    ControlLeftNode.Get(0)->AddApplication(controlLApp);
+    
+
+    Ptr<ControlApp> controlApp = CreateObject<ControlApp> ();
+    controlApp->SetAttribute("Local",AddressValue(InetSocketAddress(ControlInterface[0].GetAddress(0))));
+    controlApp->Setup(ControlSocket,ControlInterface,Ap,nodeofAp,Ap*nodeofAp,InetSocketAddress(ControlInterface[0].GetAddress(0)));
+    ControlNode.Get(0)->AddApplication(controlApp);
+
+    Ipv4GlobalRoutingHelper::PopulateRoutingTables();   
+    Simulator::Stop(Seconds (30.0));
+    return 0;
 }

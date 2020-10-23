@@ -28,19 +28,20 @@ public:
     static TypeId GetTypeId(void);
     Control1App();
     virtual ~Control1App();
+    void Setup(Ptr<Socket> sockets,std::vector<Ipv4InterfaceContainer> children,Address local,uint32_t m_childnum);
 private:
     std::vector<uint32_t> m_periods;
     std::vector<bool> m_reports;
     std::vector<uint32_t> m_rti;
-    std::vector<Ptr<Socket>> m_sockets;
+    Ptr<Socket> m_sockets;
     Address m_local;
-    std::vector<Address> m_childs;
+    std::vector<Ipv4InterfaceContainer> m_childs;
     uint32_t m_childnum;
 
     virtual void StartApplication(void);
     virtual void StopApplication(void);
     void HandleRead(Ptr<Socket> socket);
-    void Setup(std::vector<Ptr<Socket>> sockets,std::vector<Address> children,Address local,uint32_t m_childnum);
+   
     void SendControl(uint32_t addindex);
 };
 TypeId
@@ -73,8 +74,8 @@ Control1App::~Control1App(){
 
 }
 void 
-Control1App::Setup(std::vector<Ptr<Socket>> sockets,std::vector<Address> children,Address local,uint32_t childnum){
-    m_sockets.assign(sockets.begin(),sockets.end());
+Control1App::Setup(Ptr<Socket> sockets,std::vector<Ipv4InterfaceContainer> children,Address local,uint32_t childnum){
+    m_sockets = sockets;
     m_childs.assign(children.begin(),children.end());
     m_local = local;
     m_childnum = childnum;
@@ -82,15 +83,12 @@ Control1App::Setup(std::vector<Ptr<Socket>> sockets,std::vector<Address> childre
 
 void
 Control1App::StartApplication(void){
-    for(int i = 0; i < m_sockets.size();i++){
-        if(!m_local.IsInvalid()){
-            m_sockets[i]->Bind(m_local);
-        }else{
-            m_sockets[i]->Bind();
-        }
-        m_sockets[i]->Connect(m_childs[i]);
-        m_sockets[i]->SetRecvCallback(MakeCallback(&Control1App::HandleRead,this));
+    if(!m_local.IsInvalid()){
+        m_sockets->Bind(m_local);
+    }else{
+        m_sockets->Bind();
     }
+    m_sockets->SetRecvCallback(MakeCallback(&Control1App::HandleRead,this));
 }
 void
 Control1App::StopApplication(void){}
@@ -139,5 +137,5 @@ Control1App::SendControl(uint32_t addindex)
     packet->AddHeader(period);
     packet->AddHeader(rti);
     packet->AddHeader(report);
-    m_sockets[addindex]->Send(packet,0);
+    m_sockets->SendTo(packet,0,m_childs[addindex].GetAddress(0));
 }

@@ -29,7 +29,7 @@ public:
     static TypeId GetTypeId(void);
     EdgeApp();
     virtual ~EdgeApp();
-    void Setup(Ptr<Socket> socket, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum);
+    void Setup(Ipv4InterfaceContainer interfaces,uint32_t interfaceIndex ,Ptr<Socket> socket, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum);
     void CalculateRTT(uint64_t startTime,uint64_t endTime);
     bool GetUsingTdma();
     TracedCallback<Ptr<const Packet>> m_rxTrace;
@@ -43,8 +43,7 @@ private:
  
     void HandleRead (Ptr<Socket> socket);
     void ReportOnTime();
-    void UpdateMacPro(ApplicationContainer apps,int appIndex,Ipv4InterfaceContainer interface,int interIndex,uint16_t port);
-    
+    void UpdateMacPro();
     Ptr<Socket>     m_socket;
     Address         m_peer;
     Address         m_local;
@@ -66,6 +65,8 @@ private:
     bool m_report;
     uint32_t m_metrxType; // 1:latency 2:throughput 3:latency and throughput
     uint32_t m_childnum;
+    Ipv4InterfaceContainer m_interfaces;
+    uint32_t m_interfaceIndex;
 };
 
 
@@ -147,7 +148,9 @@ EdgeApp::EdgeApp()
       m_change (false),
       m_report(false),
       m_metrxType(1),
-      m_childnum(0)
+      m_childnum(0),
+      m_interfaces(),
+      m_interfaceIndex(0)
 {
     // ReportOnTime();
 }
@@ -155,8 +158,10 @@ EdgeApp::~EdgeApp(){
   
 }
  void
- EdgeApp::Setup (Ptr<Socket> socket, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum)
+ EdgeApp::Setup (Ipv4InterfaceContainer interfaces,uint32_t interfaceIndex,Ptr<Socket> socket, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum)
  {
+   m_interfaces = interfaces;
+   m_interfaceIndex = interfaceIndex;
    m_socket = socket;
    m_peer = address;
    m_packetSize = packetSize;
@@ -173,7 +178,7 @@ void EdgeApp::StartApplication(void){
     else
         m_socket->Bind();
     m_socket->Connect (m_peer);
- 
+    
     if(m_report)
         ReportOnTime();
     SendPacket ();
@@ -262,13 +267,15 @@ EdgeApp::GetUsingTdma(){
     return m_usingtdma;
 }
 
-void EdgeApp::UpdateMacPro(ApplicationContainer apps,int appIndex,Ipv4InterfaceContainer interface,int interIndex,uint16_t port){
+void EdgeApp::UpdateMacPro(){
     if(m_change){
         if(m_usingtdma){
-            apps.Get(appIndex)->SetAttribute("Local",AddressValue(InetSocketAddress(interface.GetAddress(interIndex),port)));
+            this->SetAttribute("Local",AddressValue(InetSocketAddress(m_interfaces.GetAddress(1))));
+            m_socket->Bind(m_local);
             m_usingtdma = false;
         }else{
-            apps.Get(appIndex)->SetAttribute("Local",AddressValue(InetSocketAddress(interface.GetAddress(interIndex),port)));
+            this->SetAttribute("Local",AddressValue(InetSocketAddress(m_interfaces.GetAddress(0))));
+            m_socket->Bind(m_local);
             m_usingtdma = true;
         }
     }
@@ -308,14 +315,22 @@ void EdgeApp::HandleRead (Ptr<Socket> socket){
               
             }else if (tag.GetTagValue() == 2 ){ //download control packet
                 // NS_LOG_INFO("it is a control packet" + tag.GetTagValue());
-                SeqTsSizeHeader seqTs;
-                packet->RemoveHeader(seqTs);
-                uint32_t isChange = seqTs.GetSeq();
-                if (isChange > 0)
+                SeqTsSizeHeader action;
+                packet->RemoveHeader(action);
+                uint32_t isChange = action.GetSeq();
+                
+                if (isChange == 0 && m_usingtdma == false){
                     m_change = true;
-                else
+                    UpdateMacPro();
+                }
+                else if (isChange == 0 && m_usingtdma == true)
                 {
                     m_change = false;
+                }else if(isChange == 1 && m_usingtdma == false){
+                    m_change = false;
+                }else if(isChange == 1 && m_usingtdma == true){
+                    m_change == true;
+                    UpdateMacPro();
                 }
             }else if(tag.GetTagValue() == 3){   // download metrics packet
                 

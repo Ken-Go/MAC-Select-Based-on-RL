@@ -123,7 +123,8 @@ public:
     static  TypeId GetTypeId(void);
     ControlApp();
     virtual ~ControlApp();
-   
+    void Setup(Ptr<Socket> sockets,std::vector<Ipv4InterfaceContainer> childs,uint32_t m_apnum,uint32_t m_edgenum,uint32_t m_allnum,Address m_local);
+
 private:
     std::vector<std::vector<QLearn*> >  m_qlearns;
     std::vector<std::vector<uint32_t> >  m_metrics;
@@ -132,8 +133,8 @@ private:
     uint32_t m_edgenum;
     uint32_t m_allnum;
     
-    std::vector<Ptr<Socket>> m_sockets;
-    std::vector<Address>     m_childs;
+    Ptr<Socket> m_sockets;
+    std::vector<Ipv4InterfaceContainer>     m_childs;
     Address m_local;
     EventId  m_updataEvent;
     double e;
@@ -143,8 +144,6 @@ private:
     void HandleRead (Ptr<Socket> socket);
     void SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t> state);
     void SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t> state,Address from);
-    void Setup(std::vector<Ptr<Socket>> sockets,std::vector<Ptr<Socket>> childs,uint32_t m_apnum,uint32_t m_edgenum,uint32_t m_allnum,Address m_local);
-
 };
 TypeId
 ControlApp::GetTypeId(void){
@@ -176,10 +175,10 @@ ControlApp::~ControlApp(){
 
 }
 void 
-ControlApp::Setup(std::vector<Ptr<Socket>> sockets,std::vector<Ptr<Socket>> childs,uint32_t apnum,uint32_t edgenum,uint32_t allnum,Address local)
+ControlApp::Setup(Ptr<Socket> sockets,std::vector<Ipv4InterfaceContainer> childs,uint32_t apnum,uint32_t edgenum,uint32_t allnum,Address local)
 {
     m_local = local;
-    m_sockets.assign(sockets.begin(),sockets.end());
+    m_sockets = sockets;
     m_childs.assign(childs.begin(),childs.end());
     m_apnum = apnum;
     m_edgenum = edgenum;
@@ -232,18 +231,16 @@ ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t
 }
 void
 ControlApp::StartApplication(void){
-    for(int i = 0; i < m_sockets.size();i++){
+
         if(!m_local.IsInvalid()){
-            m_sockets[i]->Bind(m_local);
+            m_sockets->Bind(m_local);
         }else
         {
-            m_sockets[i]->Bind();
+            m_sockets->Bind();
         }
-        m_sockets[i]->Connect(m_childs[i]);
-        m_sockets[i]->SetRecvCallback(MakeCallback(&ControlApp::HandleRead,this));       
-    }
-    for(uint32_t i = 0; i < m_sockets.size();i++){
-        SendControl(m_sockets[i],i,m_states[i]);
+   
+    for(uint32_t i = 0; i < m_apnum;i++){
+        SendControl(m_sockets,i,m_states[i]);
     }
 }
 void
