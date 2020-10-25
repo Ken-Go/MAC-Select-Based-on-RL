@@ -166,9 +166,10 @@ EdgeApp::~EdgeApp(){
  }
  
 void EdgeApp::StartApplication(void){
+    std::cout<<"start Edge app"<<std::endl;
     m_running = true;
     m_packetsSent = 0;
-     std::cout<<"Run??"<<std::endl;
+    //  std::cout<<"Run??"<<std::endl;
     if(!m_local.IsInvalid())
         m_socket->Bind(m_local);
     else
@@ -194,10 +195,10 @@ void EdgeApp::SendPacket(void){
     packet->AddPacketTag(tag);
     // set time header now
     TimeHeader header;
-    std::cout<<"debug--1"<<std::endl;
+    // std::cout<<"debug--1"<<std::endl;
     header.SetData((uint32_t)Simulator::Now().GetMilliSeconds());
     packet->AddHeader(header);
-    std::cout<<"debug--2"<<std::endl;
+    // std::cout<<"debug--2"<<std::endl;
     m_socket->Send(packet);
     if(++m_packetsSent < m_nPackets){
         ScheduleTx ();
@@ -266,12 +267,17 @@ EdgeApp::GetUsingTdma(){
 
 void EdgeApp::UpdateMacPro(){
     if(m_change){
-        if(m_usingtdma){
-            this->SetAttribute("Local",AddressValue(InetSocketAddress(m_interfaces.GetAddress(1))));
+        std::cout<<"change mac"<<std::endl;
+        if(m_usingtdma){ //tdma -> csma
+            std::cout<<"change mac tdma -> csma"<<std::endl;
+            // this->SetAttribute("Local",AddressValue(InetSocketAddress(m_interfaces.GetAddress(0))));
+            m_local = InetSocketAddress(m_interfaces.GetAddress(0));
             m_socket->Bind(m_local);
             m_usingtdma = false;
-        }else{
-            this->SetAttribute("Local",AddressValue(InetSocketAddress(m_interfaces.GetAddress(0))));
+        }else{   //csma -> tdma
+            std::cout<<"change mac csma -> tdma"<<std::endl;
+            // this->SetAttribute("Local",AddressValue(InetSocketAddress(m_interfaces.GetAddress(1))));
+            m_local = InetSocketAddress(m_interfaces.GetAddress(1));
             m_socket->Bind(m_local);
             m_usingtdma = true;
         }

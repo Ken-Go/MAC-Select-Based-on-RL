@@ -5,10 +5,45 @@
 #include "ns3/simple-wireless-tdma-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/global-route-manager-impl.h"
+#include "ns3/tdma-controller.h"
+#include "ns3/tdma-helper.h"
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("main");
+
+void
+TdmaHelper::AssignTdmaSlots (Ptr<TdmaMac> mac, uint32_t nodeId) const
+{
+  NS_LOG_FUNCTION (this << mac << nodeId);
+  for (uint32_t i = 0; i < m_numRows; i++)
+    {
+      std::cout<<"debug===1 m_slotAllotmentArray[i][0]"<<m_slotAllotmentArray[i][0]<<"nodeId"<<nodeId<<std::endl;        
+      if (m_slotAllotmentArray[i][0] == nodeId)
+        {
+        std::cout<<"debug == 2"<<std::endl;
+          for (uint32_t j = 1; j < m_numCols; j++)
+            {
+              //validation of the slots
+              NS_ASSERT_MSG (((m_slotAllotmentArray[i][j] == 0) || (m_slotAllotmentArray[i][j] == 1)),
+                             "Tdma slots should be assigned with only 0 or 1");
+              for (uint32_t k = 0; k < m_numRows; k++)
+                {
+                  if (k == i)
+                    {
+                      continue;
+                    }
+                  NS_ASSERT_MSG (!(m_slotAllotmentArray[k][j] == 1 && m_slotAllotmentArray[i][j] == 1),
+                                 "Slot exclusivity is not maintained");
+                }
+              if (m_slotAllotmentArray[i][j] == 1)
+                {
+                  m_controller->AddTdmaSlot (j - 1,mac);
+                }
+            }
+        }
+    }
+}
 
 SPFVertex::NodeExit_t 
 SPFVertex::GetRootExitDirection () const
@@ -23,6 +58,7 @@ SPFVertex::GetRootExitDirection () const
 int 
 main(int argc, char *argv[])
 {
+    // LogComponentEnable("TdmaHelper");
     uint32_t nodeofAp = 3;
     uint32_t Ap = 3;
     // uint32_t control = 1;
@@ -101,9 +137,10 @@ main(int argc, char *argv[])
     WifiHelper wifi;
     wifi.SetRemoteStationManager ("ns3::AarfWifiManager");
 
-    
-    std::vector<NetDeviceContainer> staDevices(Ap);
+    std::vector<NetDeviceContainer> statdmaDevices(Ap);
+    std::vector<NetDeviceContainer> stacsmaDevices(Ap);
     std::vector<NetDeviceContainer> apDevices(Ap);
+    std::vector<NetDeviceContainer> staDevices(Ap);
     for(uint32_t i = 0; i < Ap;i++){
         YansWifiChannelHelper channel =  YansWifiChannelHelper::Default();
         YansWifiPhyHelper phy = YansWifiPhyHelper::Default();
@@ -119,7 +156,20 @@ main(int argc, char *argv[])
         mac.SetType ("ns3::StaWifiMac",
                     "Ssid",SsidValue(ssid),
                     "ActiveProbing",BooleanValue(false));
-        staDevices[i] = wifi.Install(phy,mac,wifiStaNodes[i]);
+        stacsmaDevices[i] = wifi.Install(phy,mac,wifiStaNodes[i]);
+        
+        std::ostringstream filename;
+        filename<<"tdmaSlots"<<i<<".txt";
+        TdmaHelper tdma = TdmaHelper (filename.str().c_str());
+        TdmaControllerHelper controller;
+        controller.Set ("SlotTime", TimeValue (MicroSeconds (1100)));
+        controller.Set ("GuardTime", TimeValue (MicroSeconds (100)));
+        controller.Set ("InterFrameTime", TimeValue (MicroSeconds (0)));
+        tdma.SetTdmaControllerHelper (controller);
+        std::cout<<wifiStaNodes[i].GetN()<<std::endl;
+        statdmaDevices[i] = tdma.Install (wifiStaNodes[i]);
+
+        staDevices[i] = NetDeviceContainer(stacsmaDevices[i],statdmaDevices[i]);
     }
     // NetDeviceContainer staallDevices = wifi.Install(phy,mac,allStaNodes);
     // NetDeviceContainer apallDevices = wifi.Install(phy,mac,allApNodes);
@@ -173,7 +223,9 @@ main(int argc, char *argv[])
     Ipv4AddressHelper address;
     
     uint32_t i = 0,j = 0;
-    std::vector<Ipv4InterfaceContainer> staInterface(Ap);
+    std::vector<Ipv4InterfaceContainer> stacsmaInterface(Ap);
+    std::vector<Ipv4InterfaceContainer> statdmaInterface(Ap);
+    std::vector<std::vector<Ipv4InterfaceContainer> > staInterface(Ap);
     std::vector<Ipv4InterfaceContainer> router1Interfaces(2);
     std::vector<Ipv4InterfaceContainer> router2Interface(1);
     std::vector<Ipv4InterfaceContainer> ControlInterface(2);
@@ -185,9 +237,15 @@ main(int argc, char *argv[])
         std::ostringstream subset;
         subset<<"10.1."<<++j<<".0";
         address.SetBase(subset.str().c_str(),"255.255.255.0");
-        staInterface[i] =  address.Assign(staDevices[i]);
         Ipv4InterfaceContainer ApInterface = address.Assign(apDevices[i]);
         ApInterfaces.Add(ApInterface);
+        stacsmaInterface[i] = address.Assign(stacsmaDevices[i]);
+        statdmaInterface[i] = address.Assign(statdmaDevices[i]);
+        staInterface[i].resize(stacsmaInterface.size());
+        for(uint32_t j = 0; j < stacsmaInterface.size();j++){
+            staInterface[i][j].Add(stacsmaInterface[i].Get(j));
+            staInterface[i][j].Add(statdmaInterface[i].Get(j));    
+        }
     }
    
     for(int i =0;i < 2;i++){
@@ -235,6 +293,45 @@ main(int argc, char *argv[])
     Ptr<Socket> ControlLSocket = Socket::CreateSocket(ControlLeftNode.Get(0),TcpSocketFactory::GetTypeId ());
     Ptr<Socket> ControlSocket = Socket::CreateSocket(ControlNode.Get(0),TcpSocketFactory::GetTypeId ());    
     
+  
+
+
+    
+
+
+
+    //EdgeApp
+    std::vector<std::vector<Ptr<EdgeApp>> > StaApps;
+    StaApps.resize(Ap);
+    for(i = 0; i < Ap;i++){
+        for(uint32_t j = 0; j < nodeofAp; j++){
+            Ptr<EdgeApp> app = CreateObject<EdgeApp> ();
+            app->Setup(i,staInterface[i][j],j,Stasockets[i][j],ApInterfaces.GetAddress(i),1024,1024,DataRate("1Mbps"),j);
+            app->SetAttribute("Local",AddressValue(InetSocketAddress(stacsmaInterface[i].GetAddress(j))));
+            app->SetAttribute("Report",BooleanValue(true));
+            wifiStaNodes[i].Get(j)->AddApplication(app);
+            app->SetStartTime(Seconds (0.));
+            app->SetStopTime(Seconds (20.));
+            StaApps[i].push_back(app);
+        }
+    }
+    
+    //SenseApp
+    std::vector<Ptr<SenseApp> > SenseApps;
+    for(i = 0; i < Ap;i++){
+        Ptr<SenseApp> senseapp = CreateObject<SenseApp> ();
+        senseapp->Setup(ApSockets[i],stacsmaInterface[i],
+                        InetSocketAddress(ApInterfaces.GetAddress(i)),
+                        InetSocketAddress(ControlLeftInterface[0].GetAddress(0)),
+                        InetSocketAddress(ControlInterface[0].GetAddress(0)),
+                        nodeofAp,i);
+        senseapp->SetAttribute("Local",AddressValue(InetSocketAddress(ApInterfaces.GetAddress(i))));
+        senseapp->SetStartTime(Seconds(0.));
+        senseapp->SetStopTime(Seconds(20.));
+        SenseApps.push_back(senseapp);
+        wifiApNodes.Get(i)->AddApplication(senseapp);
+    }
+
     //ControlApp
     Ptr<Control1App> controlLApp = CreateObject<Control1App>();
     controlLApp->SetAttribute("Local",AddressValue(InetSocketAddress(ControlLeftInterface[0].GetAddress(0))));
@@ -254,41 +351,6 @@ main(int argc, char *argv[])
     controlApp->SetStartTime(Seconds(0.));
     controlApp->SetStopTime(Seconds(20.));
 
-
-    //SenseApp
-    std::vector<Ptr<SenseApp> > SenseApps;
-    for(i = 0; i < Ap;i++){
-        Ptr<SenseApp> senseapp = CreateObject<SenseApp> ();
-        senseapp->Setup(ApSockets[i],staInterface[i],
-                        InetSocketAddress(ApInterfaces.GetAddress(i)),
-                        InetSocketAddress(ControlLeftInterface[0].GetAddress(0)),
-                        InetSocketAddress(ControlInterface[0].GetAddress(0)),
-                        nodeofAp,i);
-        senseapp->SetAttribute("Local",AddressValue(InetSocketAddress(ApInterfaces.GetAddress(i))));
-        senseapp->SetStartTime(Seconds(0.));
-        senseapp->SetStopTime(Seconds(20.));
-        SenseApps.push_back(senseapp);
-        wifiApNodes.Get(i)->AddApplication(senseapp);
-    }
-
-
-
-    //EdgeApp
-    std::vector<std::vector<Ptr<EdgeApp>> > StaApps;
-    StaApps.resize(Ap);
-    for(i = 0; i < Ap;i++){
-        for(uint32_t j = 0; j < nodeofAp; j++){
-            Ptr<EdgeApp> app = CreateObject<EdgeApp> ();
-            app->Setup(i,staInterface[i],j,Stasockets[i][j],ApInterfaces.GetAddress(i),1024,1024,DataRate("1Mbps"),j);
-            app->SetAttribute("Local",AddressValue(InetSocketAddress(staInterface[i].GetAddress(j))));
-            app->SetAttribute("Report",BooleanValue(true));
-            wifiStaNodes[i].Get(j)->AddApplication(app);
-            app->SetStartTime(Seconds (0.));
-            app->SetStopTime(Seconds (20.));
-            StaApps[i].push_back(app);
-        }
-    }
-    
     std::cout<<"================Start Simulation======"<<std::endl;
     Simulator::Stop(Seconds (30.0));
 

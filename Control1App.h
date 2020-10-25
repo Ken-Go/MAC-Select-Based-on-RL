@@ -138,7 +138,6 @@ Control1App::broadcast()
     for(uint32_t i =0; i < m_childnum;i++){
         SendControl(i);
     }
-   
     ScheduleBroadcast();
 }
 void 
