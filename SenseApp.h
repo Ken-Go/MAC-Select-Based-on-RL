@@ -1,3 +1,5 @@
+#ifndef SENSE_APP_H
+#define SENSE_APP_H
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 #include "ns3/applications-module.h"
@@ -6,8 +8,8 @@
 #include "ns3/event-id.h"
 #include "ns3/ptr.h"
 #include "ns3/address.h"
+#include "EdgeTag.h"
 #include "TimeHeader.h"
-#include "EdgeApp.h"
 #include "ns3/traced-callback.h"
 
 #include <iostream>
@@ -132,6 +134,8 @@ SenseApp::StartApplication(void){
     }else{
        m_socket->Bind();
     }
+    m_socket->SetRecvCallback(MakeCallback (&SenseApp::HandleRead,this));
+    std::cout<<"start SenseApp"<<std::endl;
     // Update();
     SendMetrics();
 }
@@ -156,17 +160,20 @@ SenseApp::SendToChild(Ptr<Socket> socket,uint32_t index,Address To,uint32_t tag_
 void
 SenseApp::HandleRead(Ptr<Socket> socket)
 {
+    std::cout<<"???"<<std::endl;
     Ptr<Packet> packet;
     Address from;
     Address localAddress;
     while((packet = socket->RecvFrom(from)))
-    {
+    {   
+        
         if(packet->GetSize() > 0)
         {
             EdgeTag tag;
             packet->PeekPacketTag(tag);
             if(tag.GetTagValue() == 0) // data packet
             {
+                std::cout<<"receive tag == 0 ,data packet;"<<std::endl;
                 TimeHeader header;
                 packet->RemoveHeader(header);
                
@@ -186,6 +193,7 @@ SenseApp::HandleRead(Ptr<Socket> socket)
                 socket->SendTo(packet,0,from);
             }else if(tag.GetTagValue() == 1) //uplink metrics packet
             {
+                std::cout<<"receive tag == 1 ,up metrics packet;"<<std::endl;
                 SeqTsSizeHeader nodeNum,metrics,usingtdma;
                 packet->RemoveHeader(nodeNum);
                 packet->RemoveHeader(metrics);
@@ -199,6 +207,7 @@ SenseApp::HandleRead(Ptr<Socket> socket)
                 
             }else if(tag.GetTagValue() == 3) //download metrics packet
             {
+                std::cout<<"receive tag == 3 ,download metrics packet;"<<std::endl;
                 SeqTsSizeHeader nums;
                 packet->RemoveHeader(nums);
                 uint32_t m_nums= nums.GetSeq();
@@ -252,7 +261,9 @@ SenseApp::ResetUpdate(){
 void
 SenseApp::SendMetrics()
 {
+    std::cout<<"SenseApp send Metrics"<<std::endl;
     if(collectAll()){
+        std::cout<<"SenseApp Collect All"<<std::endl;
         if(m_temp.IsRunning())
             Simulator::Cancel(m_temp);
         Ptr<Packet> pac = Create<Packet>(0);
@@ -279,8 +290,9 @@ SenseApp::SendMetrics()
         ResetUpdate();
         ScheduleSend();
     }else{
+        std::cout<<"SenseApp next sendmetrics"<<std::endl;
         Time tNext(Seconds (m_tolerate));
         m_temp = Simulator::Schedule(tNext,&SenseApp::SendMetrics,this);
     }
 }
-
+#endif

@@ -1,3 +1,5 @@
+#ifndef CONTROL_APP_H
+#define CONTROL_APP_H
 #include "ns3/core-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/network-module.h"
@@ -44,7 +46,7 @@ public:
     bool is_Line_Zero(uint32_t line);
     double Reward();
     void UpdateQtable();
-    double get_env_feedback(uint32_t state, double reward);
+    void get_env_feedback(uint32_t state, double reward);
     void changeState();
 };
 QLearn::QLearn()
@@ -100,9 +102,10 @@ uint32_t QLearn::choose_action()
     }
     take_action = action_name;
     next_state = action_name;
+    return action_name;
 }
 
-double QLearn::get_env_feedback(uint32_t state, double reward){
+void QLearn::get_env_feedback(uint32_t state, double reward){
     m_reward = reward;
     now_state = state;
 }
@@ -124,7 +127,7 @@ public:
     static  TypeId GetTypeId(void);
     ControlApp();
     virtual ~ControlApp();
-    void Setup(Ptr<Socket> sockets,std::vector<Ipv4InterfaceContainer> childs,uint32_t m_apnum,uint32_t m_edgenum,uint32_t m_allnum,Address m_local);
+    void Setup(Ptr<Socket> sockets,Ipv4InterfaceContainer childs,uint32_t m_apnum,uint32_t m_edgenum,uint32_t m_allnum,Address m_local);
 
 private:
     std::vector<std::vector<QLearn*> >  m_qlearns;
@@ -135,17 +138,18 @@ private:
     uint32_t m_edgenum;
     uint32_t m_allnum;
     
-    Ptr<Socket> m_sockets;
-    std::vector<Ipv4InterfaceContainer>     m_childs;
+    Ptr<Socket> m_socket;
+    Ipv4InterfaceContainer     m_childs;
     Address m_local;
     EventId  m_updataEvent;
+    uint32_t m_count;
     double e;
 
     virtual void StartApplication(void);
     virtual void StopApplication(void);
     void HandleRead (Ptr<Socket> socket);
-    void SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t> state);
-    void SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t> state,Address from);
+    void SendControl(Ptr<Socket> socket,uint32_t apIndex);
+    void SendControl(Ptr<Socket> socket,uint32_t apIndex,Address from);
 };
 TypeId
 ControlApp::GetTypeId(void){
@@ -153,7 +157,7 @@ ControlApp::GetTypeId(void){
         .SetParent<Application>()
         .SetGroupName("Application")
         .AddConstructor<ControlApp>()
-        .AddAttribute("local",
+        .AddAttribute("Local",
                     "local Address",
                     AddressValue(),
                     MakeAddressAccessor(&ControlApp::m_local),
@@ -166,10 +170,11 @@ ControlApp::ControlApp()
       m_metrics(),
       m_apnum(0),
       m_allnum(0), 
-      m_sockets(),
+      m_socket(),
       m_childs(),
       m_local(),
-      m_updataEvent()
+      m_updataEvent(),
+      m_count(0)
 {
     
 }
@@ -177,25 +182,36 @@ ControlApp::~ControlApp(){
 
 }
 void 
-ControlApp::Setup(Ptr<Socket> sockets,std::vector<Ipv4InterfaceContainer> childs,uint32_t apnum,uint32_t edgenum,uint32_t allnum,Address local)
+ControlApp::Setup(Ptr<Socket> socket,Ipv4InterfaceContainer childs,uint32_t apnum,uint32_t edgenum,uint32_t allnum,Address local)
 {
     m_local = local;
-    m_sockets = sockets;
-    m_childs.assign(childs.begin(),childs.end());
+    m_socket = socket;
+    m_childs = childs;
     m_apnum = apnum;
     m_edgenum = edgenum;
     m_allnum = allnum;
+    
     m_qlearns.resize(m_apnum);
-    for(uint32_t i =0;i<m_apnum;i++){
+    m_metrics.resize(m_apnum);
+    m_states.resize(m_apnum);
+    m_lastMetrics.resize(m_apnum);
+    for(uint32_t i =0;i < m_apnum;i++){
         m_qlearns[i].resize(edgenum);
+        m_metrics[i].resize(edgenum);
+        m_states[i].resize(edgenum);
+        m_lastMetrics[i].resize(edgenum);
     }
     for(uint32_t i = 0; i < m_apnum;i++){
         for(uint32_t j = 0; j < m_edgenum;j++){
+            m_metrics[i][j] = 0;
+            m_lastMetrics[i][j] = 0;       
             m_states[i][j] = 0;
             QLearn* q = new QLearn();
             m_qlearns[i][j] = q;
         }
     }
+
+
 }
 // void
 // ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t> state){
@@ -215,7 +231,7 @@ ControlApp::Setup(Ptr<Socket> sockets,std::vector<Ipv4InterfaceContainer> childs
 //     socket->Send(packet,0);
 // }
 void
-ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t> state,Address from){
+ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,Address from){
     Ptr<Packet> packet = Create<Packet>(0);
     EdgeTag tag;
     tag.SetTagValue(3);
@@ -225,7 +241,6 @@ ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t
     packet->AddHeader(nums);
     std::vector<SeqTsSizeHeader> headers(m_edgenum);
     for(uint32_t i; i < m_edgenum;i++){
-        ??get env   back ???
         headers[i].SetSeq(m_qlearns[apIndex][i]->choose_action());
         packet->AddHeader(headers[i]);
     }
@@ -233,16 +248,22 @@ ControlApp::SendControl(Ptr<Socket> socket,uint32_t apIndex,std::vector<uint32_t
 }
 void
 ControlApp::StartApplication(void){
-        if(!m_local.IsInvalid()){
-            m_sockets->Bind(m_local);
-        }else
-        {
-            m_sockets->Bind();
-        }
-   
-    for(uint32_t i = 0; i < m_apnum;i++){
-        SendControl(m_sockets,i,m_states[i]);
+    if(!m_local.IsInvalid()){
+        m_socket->Bind(m_local);
+    }else
+    {
+        m_socket->Bind();
     }
+    m_socket->SetRecvCallback(MakeCallback (&ControlApp::HandleRead,this));
+    std::cout<<"Start Control App"<<std::endl;
+    for(uint32_t i = 0; i < m_apnum;i++){
+        for(uint32_t j = 0; j < m_edgenum;j++){
+            m_qlearns[i][j]->get_env_feedback(0,0);
+        }
+        std::cout<<"send init control to Sense"<<m_childs.GetN()<<std::endl;
+        SendControl(m_socket,i,m_childs.GetAddress(i));
+    }
+    std::cout<<"finish"<<std::endl;
 }
 void
 ControlApp::StopApplication(void) {
@@ -262,6 +283,7 @@ ControlApp::HandleRead(Ptr<Socket> socket)
             if(tag.GetTagValue() == 0){     //data  packet
                 
             }else if(tag.GetTagValue() == 1){   //uplink metrics packet
+                std::cout<<"Control receive Tag"<<tag.GetTagValue()<<std::endl;
                 SeqTsSizeHeader index;
                 packet->RemoveHeader(index);
                 uint32_t mindex  = index.GetSeq(); 
@@ -271,18 +293,24 @@ ControlApp::HandleRead(Ptr<Socket> socket)
                 std::vector<SeqTsSizeHeader> headers(m_edgenum),headers_usingtdma(m_edgenum);
                 for(uint32_t i = 0; i < m_edgenum;i++){
                     packet->RemoveHeader(headers[i]);
-                    m_metrics[mindex][i] = headers[i].GetSeq();        
+                    m_metrics[mindex][i] = headers[i].GetSeq(); 
+                    if(m_count == 0){
+                        m_lastMetrics[mindex][i] = headers[i].GetSeq();
+                    }       
                 }
                 for(uint32_t i = 0; i < m_edgenum;i++){
                     packet->RemoveHeader(headers_usingtdma[i]);
                     m_states[mindex][i] = headers_usingtdma[i].GetSeq();        
                 }
-                for(uint32_t i =0; i < m_edgenum;i++){
-                    m_qlearns[mindex][i]->get_env_feedback(m_states[mindex][i],m_metrics[mindex][i]);
+                for(uint32_t i = 0; i < m_edgenum;i++){
+                    double reward = (m_lastMetrics[mindex][i] - m_metrics[mindex][i]) / (double) m_lastMetrics[mindex][i];
+                    m_qlearns[mindex][i]->get_env_feedback(m_states[mindex][i],
+                                                            reward);
                     m_qlearns[mindex][i]->UpdateQtable();
-                    m_qlearns[mindex][i]->changeState();
-                    SendControl(socket,mindex,m_states[mindex],from);
+                    m_qlearns[mindex][i]->changeState();    
                 }
+                m_count++;
+                SendControl(socket,mindex,from);
             }else if(tag.GetTagValue() == 2){   //download control packet
 
             }else if(tag.GetTagValue() == 3){   //download metrics packet
@@ -291,3 +319,4 @@ ControlApp::HandleRead(Ptr<Socket> socket)
         }
     }
 }
+#endif

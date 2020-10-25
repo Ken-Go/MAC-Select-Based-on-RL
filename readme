@@ -2,4 +2,5 @@ start work
 1.build the network topology!
 2.finish EdgeApp.cc
 3.finish SenseApp.cc
-Next:	finish ControlApp.cc
+4.finish ControlApp.cc
+5.run main.cc

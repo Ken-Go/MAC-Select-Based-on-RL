@@ -1,3 +1,5 @@
+ #ifndef EDGE_TAG_H
+ #define EDGE_TAG_H
  #include "ns3/tag.h"
  #include "ns3/packet.h"
  #include "ns3/uinteger.h"
@@ -22,6 +24,7 @@ public:
 private:
     uint8_t m_edgeTag;
 };
+
 TypeId
 EdgeTag::GetTypeId(void)
 {
@@ -69,3 +72,4 @@ EdgeTag::Deserialize(TagBuffer i){
  {
    return m_edgeTag;
  }
+#endif

@@ -1,3 +1,5 @@
+#ifndef EDGE_APP_H
+#define EDGE_APP_H
 #include "ns3/core-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/traced-callback.h"
@@ -29,7 +31,7 @@ public:
     static TypeId GetTypeId(void);
     EdgeApp();
     virtual ~EdgeApp();
-    void Setup(Ipv4InterfaceContainer interfaces,uint32_t interfaceIndex ,Ptr<Socket> socket, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum);
+    void Setup(uint32_t fatherIndex,Ipv4InterfaceContainer interfaces,uint32_t interfaceIndex ,Ptr<Socket> socket, Address address, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum);
     void CalculateRTT(uint64_t startTime,uint64_t endTime);
     bool GetUsingTdma();
     TracedCallback<Ptr<const Packet>> m_rxTrace;
@@ -67,6 +69,7 @@ private:
     uint32_t m_childIndex;
     Ipv4InterfaceContainer m_interfaces;
     uint32_t m_interfaceIndex;
+    uint32_t m_fatherIndex;
 };
 
 
@@ -140,7 +143,8 @@ EdgeApp::EdgeApp()
       m_metrxType(1),
       m_childIndex(0),
       m_interfaces(),
-      m_interfaceIndex(0)
+      m_interfaceIndex(0),
+      m_fatherIndex(0)
 {
     // ReportOnTime();
 }
@@ -148,8 +152,9 @@ EdgeApp::~EdgeApp(){
   
 }
  void
- EdgeApp::Setup (Ipv4InterfaceContainer interfaces,uint32_t interfaceIndex,Ptr<Socket> socket, Address peeraddress, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum)
+ EdgeApp::Setup (uint32_t fatherIndex,Ipv4InterfaceContainer interfaces,uint32_t interfaceIndex,Ptr<Socket> socket, Address peeraddress, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum)
  {
+   m_fatherIndex = fatherIndex;
    m_interfaces = interfaces;
    m_interfaceIndex = interfaceIndex;
    m_socket = socket;
@@ -163,6 +168,7 @@ EdgeApp::~EdgeApp(){
 void EdgeApp::StartApplication(void){
     m_running = true;
     m_packetsSent = 0;
+     std::cout<<"Run??"<<std::endl;
     if(!m_local.IsInvalid())
         m_socket->Bind(m_local);
     else
@@ -181,15 +187,17 @@ void EdgeApp::StopApplication(void){
 }
 void EdgeApp::SendPacket(void){
     Ptr<Packet> packet = Create<Packet> (m_packetSize);
-    std::cout<<"EdgeNode "<<m_childIndex<<" send packet at "<<Simulator::Now().GetSeconds()<<std::endl;
+    std::cout<<"ApNode: "<<m_fatherIndex<<" EdgeNode "<<m_childIndex<<" send packet at "<<Simulator::Now().GetSeconds()<<std::endl;
     // set data tag : 0 data,1 up metrics,2 download control,3 download metrics
     EdgeTag tag;
     tag.SetTagValue(0); 
     packet->AddPacketTag(tag);
     // set time header now
     TimeHeader header;
-    header.SetData(Simulator::Now().GetMilliSeconds());
+    std::cout<<"debug--1"<<std::endl;
+    header.SetData((uint32_t)Simulator::Now().GetMilliSeconds());
     packet->AddHeader(header);
+    std::cout<<"debug--2"<<std::endl;
     m_socket->Send(packet);
     if(++m_packetsSent < m_nPackets){
         ScheduleTx ();
@@ -209,6 +217,8 @@ void EdgeApp::ScheduleRe(void){
 }
 
 void EdgeApp::ReportOnTime(){
+    std::cout<<"ApNode: "<<m_fatherIndex<<" EdgeNode "<<m_childIndex;
+    std::cout<<"  report on time"<<std::endl;
     Ptr<Packet> packet = Create<Packet> (0);
     //add tag: metrics
     EdgeTag tag;
@@ -281,9 +291,11 @@ void EdgeApp::HandleRead (Ptr<Socket> socket){
         socket->GetSockName(localAddress);
         m_rxTrace (packet);
         m_rxTraceWithAddress(packet,from,localAddress);
+       
         if (packet->GetSize () > 0){
             EdgeTag tag;
             packet->PeekPacketTag(tag);
+            std::cout<<"Edge Node"<<m_childIndex<<"Receive packet; tag is "<<tag.GetTagValue()<<std::endl;
             if (tag.GetTagValue() == 0) {
                 // NS_LOG_INFO("it is a data packet" + tag.GetTagValue());
                 //ischange
@@ -300,6 +312,7 @@ void EdgeApp::HandleRead (Ptr<Socket> socket){
             }else if(tag.GetTagValue() == 1){  // uplink metrics packet
               
             }else if (tag.GetTagValue() == 2 ){ //download control packet
+                std::cout<<"Edge Node"<<m_childIndex<<"Receive packet; tag is "<<tag.GetTagValue()<<std::endl;
                 // NS_LOG_INFO("it is a control packet" + tag.GetTagValue());
                 SeqTsSizeHeader action;
                 packet->RemoveHeader(action);
@@ -315,7 +328,7 @@ void EdgeApp::HandleRead (Ptr<Socket> socket){
                 }else if(isChange == 1 && m_usingtdma == false){
                     m_change = false;
                 }else if(isChange == 1 && m_usingtdma == true){
-                    m_change == true;
+                    m_change = true;
                     UpdateMacPro();
                 }
             }else if(tag.GetTagValue() == 3){   // download metrics packet
@@ -324,5 +337,4 @@ void EdgeApp::HandleRead (Ptr<Socket> socket){
         }
     } 
 }
-
-
+#endif

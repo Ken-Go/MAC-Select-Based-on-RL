@@ -4,10 +4,22 @@
 #include "ControlApp.h"
 #include "ns3/simple-wireless-tdma-module.h"
 #include "ns3/internet-module.h"
+#include "ns3/global-route-manager-impl.h"
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE("main");
+
+SPFVertex::NodeExit_t 
+SPFVertex::GetRootExitDirection () const
+{
+  NS_LOG_FUNCTION (this);
+
+  //NS_ASSERT_MSG (m_ecmpRootExits.size () <= 1, "Assumed there is at most one exit from the root to this vertex");
+  return GetRootExitDirection (0);
+}
+
+
 int 
 main(int argc, char *argv[])
 {
@@ -17,7 +29,7 @@ main(int argc, char *argv[])
     NodeContainer wifiApNodes;
     wifiApNodes.Create(Ap);
     NodeContainer allStaNodes;
-    
+
     std::vector<NodeContainer> wifiStaNodes(Ap);
     for(uint32_t i =0 ; i< wifiStaNodes.size();i++){
         wifiStaNodes[i].Create(nodeofAp);
@@ -27,6 +39,7 @@ main(int argc, char *argv[])
     }
     
 
+
     NodeContainer ControlNode;
     ControlNode.Create(1);
     NodeContainer ControlLeftNode;
@@ -34,6 +47,7 @@ main(int argc, char *argv[])
 
     NodeContainer routers;
     routers.Create(2);
+
 
     std::vector<NodeContainer> router1Link(2);
     std::vector<NodeContainer> router2Link(1);
@@ -81,30 +95,34 @@ main(int argc, char *argv[])
 
     
 
-    YansWifiChannelHelper channel =  YansWifiChannelHelper::Default();
-    YansWifiPhyHelper phy = YansWifiPhyHelper::Default();
-    phy.SetChannel (channel.Create());
+    
+
 
     WifiHelper wifi;
-    wifi.SetRemoteStationManager ("ns3::AarfwifiManager");
+    wifi.SetRemoteStationManager ("ns3::AarfWifiManager");
 
-    WifiMacHelper mac;
-    Ssid ssid = Ssid("ns-3-ssid");
-    mac.SetType ("ns3::StaWifiMac",
-                "Ssid",SsidValue(ssid),
-                "ActiveProbing",BooleanValue(false));
-
+    
     std::vector<NetDeviceContainer> staDevices(Ap);
-    for(uint32_t i =0;i<Ap;i++){
+    std::vector<NetDeviceContainer> apDevices(Ap);
+    for(uint32_t i = 0; i < Ap;i++){
+        YansWifiChannelHelper channel =  YansWifiChannelHelper::Default();
+        YansWifiPhyHelper phy = YansWifiPhyHelper::Default();
+        phy.SetChannel (channel.Create());
+        phy.Set("ChannelNumber",UintegerValue(i));
+        WifiMacHelper mac;
+        Ssid ssid = Ssid("ns-3-ssid-"+i);
+
+        mac.SetType ("ns3::ApWifiMac",
+               "Ssid", SsidValue (ssid));
+        apDevices[i] = wifi.Install (phy, mac, wifiApNodes.Get(i));
+
+        mac.SetType ("ns3::StaWifiMac",
+                    "Ssid",SsidValue(ssid),
+                    "ActiveProbing",BooleanValue(false));
         staDevices[i] = wifi.Install(phy,mac,wifiStaNodes[i]);
     }
-    
-    
-    mac.SetType ("ns3::ApWifiMac",
-               "Ssid", SsidValue (ssid));
-
-    NetDeviceContainer apDevices;
-    apDevices = wifi.Install (phy, mac, wifiApNodes);
+    // NetDeviceContainer staallDevices = wifi.Install(phy,mac,allStaNodes);
+    // NetDeviceContainer apallDevices = wifi.Install(phy,mac,allApNodes);
 
     MobilityHelper mobility;
     mobility.SetPositionAllocator("ns3::GridPositionAllocator",
@@ -114,19 +132,36 @@ main(int argc, char *argv[])
                             "DeltaY",DoubleValue(200.0),
                             "GridWidth",UintegerValue(3),
                             "LayoutType",StringValue("RowFirst"));
-    mobility.SetMobilityModel ("ns3::ConstantPositonMobilityModel");
+    mobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
     mobility.Install(wifiApNodes);
 
     mobility.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
-                                "x",StringValue("0"),
-                                "y",StringValue("0"),
+                                "X",StringValue("0"),
+                                "Y",StringValue("0"),
                                 "Rho",StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"));
     mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
-                            "Bounds",RectangleValue(Rectangle(-50,50,-50,50)),
-                            "distance",DoubleValue(50),
+                            "Bounds",RectangleValue(Rectangle(-100,100,-100,100)),
+                            "Distance",DoubleValue(50),
                             "Mode",StringValue("Distance"));
-    mobility.Install (allStaNodes);
-
+    mobility.Install (wifiStaNodes[0]);
+    mobility.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
+                                "X",StringValue("200"),
+                                "Y",StringValue("0"),
+                                "Rho",StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"));
+    mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
+                            "Bounds",RectangleValue(Rectangle(100,300,-100,100)),
+                            "Distance",DoubleValue(50),
+                            "Mode",StringValue("Distance"));
+    mobility.Install(wifiStaNodes[1]);
+    mobility.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
+                                "X",StringValue("400"),
+                                "Y",StringValue("0"),
+                                "Rho",StringValue("ns3::UniformRandomVariable[Min=0.0|Max=100.0]"));
+    mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
+                            "Bounds",RectangleValue(Rectangle(300,500,-100,100)),
+                            "Distance",DoubleValue(50),
+                            "Mode",StringValue("Distance"));
+    mobility.Install(wifiStaNodes[2]);
 
     InternetStackHelper stack;
     stack.Install (allStaNodes);
@@ -136,37 +171,51 @@ main(int argc, char *argv[])
     stack.Install (routers);
 
     Ipv4AddressHelper address;
-    // for(uint32_t i = 0; i < 5; i++ ){
-    //     std::ostringstream subset;
-    //     subset<<"10.1"<<i+1<<".0";
-    //     address.SetBase(subset.str().c_str(),"255.255.255.0");
-    //     address.Assign (p2pDevices[i]);
-    // }
-    std::ostringstream subset;
-    uint32_t i ;
-    std::vector<Ipv4InterfaceContainer> staInterface(Ap),router1Interfaces(2),router2Interface(1),ControlInterface(2),ControlLeftInterface(3); 
+    
+    uint32_t i = 0,j = 0;
+    std::vector<Ipv4InterfaceContainer> staInterface(Ap);
+    std::vector<Ipv4InterfaceContainer> router1Interfaces(2);
+    std::vector<Ipv4InterfaceContainer> router2Interface(1);
+    std::vector<Ipv4InterfaceContainer> ControlInterface(2);
+    std::vector<Ipv4InterfaceContainer> ControlLeftInterface(3); 
     Ipv4InterfaceContainer ApInterfaces;
-    for( i = 0 ; i < Ap;i++){
-        subset<<"10.1"<<i+1<<".0";
-        address.SetBase(subset.str().c_str(),"255.255.255.0");
-        Ipv4InterfaceContainer interface =  address.Assign (apDevices.Get(i));
-        ApInterfaces.Add(interface);
-        staInterface[i] =  address.Assign (staDevices[i]);
+    
 
+    for(uint32_t i = 0;i < Ap;i++){
+        std::ostringstream subset;
+        subset<<"10.1."<<++j<<".0";
+        address.SetBase(subset.str().c_str(),"255.255.255.0");
+        staInterface[i] =  address.Assign(staDevices[i]);
+        Ipv4InterfaceContainer ApInterface = address.Assign(apDevices[i]);
+        ApInterfaces.Add(ApInterface);
     }
-    subset<<"10.1"<<i+1<<".0";
-    address.SetBase(subset.str().c_str(),"255.255.255.0");
+   
     for(int i =0;i < 2;i++){
+        std::ostringstream subset;
+        subset<<"10.1."<<++j<<".0";
+        address.SetBase(subset.str().c_str(),"255.255.255.0");
         ControlInterface[i] =  address.Assign(ControlDevices[i]);
     }
+
     for(int i = 0 ;i < 3 ;i++){
+         std::ostringstream subset;
+        subset<<"10.1."<<++j<<".0";
+        address.SetBase(subset.str().c_str(),"255.255.255.0");
         ControlLeftInterface[i] = address.Assign(ControlLeftDevices[i]);
     }
     for(int i =0;i < 2;i++){
+        std::ostringstream subset;
+        subset<<"10.1."<<++j<<".0";
+        address.SetBase(subset.str().c_str(),"255.255.255.0");
         router1Interfaces[i] =  address.Assign(router1Devices[i]);
     }
+
+    std::ostringstream subset;
+    subset<<"10.1."<<++j<<".0";
+    address.SetBase(subset.str().c_str(),"255.255.255.0");
     router2Interface[0] = address.Assign(router2Devices[0]);
-    
+
+    Ipv4GlobalRoutingHelper::PopulateRoutingTables();   
 
     //CreateSocket
     std::vector<Ptr<Socket> > ApSockets;
@@ -186,20 +235,26 @@ main(int argc, char *argv[])
     Ptr<Socket> ControlLSocket = Socket::CreateSocket(ControlLeftNode.Get(0),TcpSocketFactory::GetTypeId ());
     Ptr<Socket> ControlSocket = Socket::CreateSocket(ControlNode.Get(0),TcpSocketFactory::GetTypeId ());    
     
-    //EdgeApp
-    std::vector<std::vector<Ptr<EdgeApp>> > StaApps;
-    StaApps.resize(Ap);
-    for(i = 0; i < Ap;i++){
-        for(uint32_t j = 0; j < nodeofAp; j++){
-            Ptr<EdgeApp> app = CreateObject<EdgeApp> ();
-            app->Setup(staInterface[i],j,Stasockets[i][j],ApInterfaces.GetAddress(i),1024,1024,DataRate("1Mbps"),j);
-            app->SetAttribute("Local",AddressValue(InetSocketAddress(staInterface[i].GetAddress(j))));
-            wifiStaNodes[i].Get(j)->AddApplication(app);
-            StaApps[i].push_back(app);
-            app->SetStartTime(Seconds(0.));
-            app->SetStopTime(Seconds(5.));
-        }
-    }
+    //ControlApp
+    Ptr<Control1App> controlLApp = CreateObject<Control1App>();
+    controlLApp->SetAttribute("Local",AddressValue(InetSocketAddress(ControlLeftInterface[0].GetAddress(0))));
+    controlLApp->Setup(ControlLSocket,
+                    ApInterfaces,
+                    InetSocketAddress(ControlLeftInterface[0].GetAddress(0)),Ap);
+    ControlLeftNode.Get(0)->AddApplication(controlLApp);
+    controlLApp->SetStartTime(Seconds(0.));
+    controlLApp->SetStopTime(Seconds(20.));
+
+    Ptr<ControlApp> controlApp = CreateObject<ControlApp> ();
+    controlApp->SetAttribute("Local",AddressValue(InetSocketAddress(ControlInterface[0].GetAddress(0))));
+    controlApp->Setup(ControlSocket,
+                    ApInterfaces,Ap,nodeofAp,Ap*nodeofAp,
+                    InetSocketAddress(ControlInterface[0].GetAddress(0)));
+    ControlNode.Get(0)->AddApplication(controlApp);
+    controlApp->SetStartTime(Seconds(0.));
+    controlApp->SetStopTime(Seconds(20.));
+
+
     //SenseApp
     std::vector<Ptr<SenseApp> > SenseApps;
     for(i = 0; i < Ap;i++){
@@ -210,27 +265,34 @@ main(int argc, char *argv[])
                         InetSocketAddress(ControlInterface[0].GetAddress(0)),
                         nodeofAp,i);
         senseapp->SetAttribute("Local",AddressValue(InetSocketAddress(ApInterfaces.GetAddress(i))));
+        senseapp->SetStartTime(Seconds(0.));
+        senseapp->SetStopTime(Seconds(20.));
         SenseApps.push_back(senseapp);
         wifiApNodes.Get(i)->AddApplication(senseapp);
     }
-    
-    //ControlApp
-    Ptr<Control1App> controlLApp = CreateObject<Control1App>();
-    controlLApp->SetAttribute("Local",AddressValue(InetSocketAddress(ControlLeftInterface[0].GetAddress(0))));
-    controlLApp->Setup(ControlLSocket,
-                    ControlLeftInterface,
-                    InetSocketAddress(ControlLeftInterface[0].GetAddress(0)),Ap);
-    ControlLeftNode.Get(0)->AddApplication(controlLApp);
-    
 
-    Ptr<ControlApp> controlApp = CreateObject<ControlApp> ();
-    controlApp->SetAttribute("Local",AddressValue(InetSocketAddress(ControlInterface[0].GetAddress(0))));
-    controlApp->Setup(ControlSocket,
-                    ControlInterface,Ap,nodeofAp,Ap*nodeofAp,
-                    InetSocketAddress(ControlInterface[0].GetAddress(0)));
-    ControlNode.Get(0)->AddApplication(controlApp);
 
-    Ipv4GlobalRoutingHelper::PopulateRoutingTables();   
+
+    //EdgeApp
+    std::vector<std::vector<Ptr<EdgeApp>> > StaApps;
+    StaApps.resize(Ap);
+    for(i = 0; i < Ap;i++){
+        for(uint32_t j = 0; j < nodeofAp; j++){
+            Ptr<EdgeApp> app = CreateObject<EdgeApp> ();
+            app->Setup(i,staInterface[i],j,Stasockets[i][j],ApInterfaces.GetAddress(i),1024,1024,DataRate("1Mbps"),j);
+            app->SetAttribute("Local",AddressValue(InetSocketAddress(staInterface[i].GetAddress(j))));
+            app->SetAttribute("Report",BooleanValue(true));
+            wifiStaNodes[i].Get(j)->AddApplication(app);
+            app->SetStartTime(Seconds (0.));
+            app->SetStopTime(Seconds (20.));
+            StaApps[i].push_back(app);
+        }
+    }
+    
+    std::cout<<"================Start Simulation======"<<std::endl;
     Simulator::Stop(Seconds (30.0));
+
+    Simulator::Run();
+    Simulator::Destroy();
     return 0;
 }
