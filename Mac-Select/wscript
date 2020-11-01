@@ -1,0 +1,47 @@
+# -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+
+# def options(opt):
+#     pass
+
+# def configure(conf):
+#     conf.check_nonfatal(header_name='stdint.h', define_name='HAVE_STDINT_H')
+
+def build(bld):
+    module = bld.create_ns3_module('Mac-Select', ['internet','network','wifi','applications'])
+    module.source = [
+        'model/EdgeApp.cc',
+        'model/SenseApp.cc',
+        'model/ControlApp.cc',
+        'model/Control1App.cc',
+        'model/EdgeTag.cc',
+        'model/TimeHeader.cc',
+        'helper/Mac-Select-helper.cc',
+        ]
+
+    module_test = bld.create_ns3_module_test_library('Mac-Select')
+    module_test.source = [
+        'test/Mac-Select-test-suite.cc',
+        ]
+    # Tests encapsulating example programs should be listed here
+    if (bld.env['ENABLE_EXAMPLES']):
+        module_test.source.extend([
+        #    'test/Mac-Select-examples-test-suite.cc',
+             ])
+
+    headers = bld(features='ns3header')
+    headers.module = 'Mac-Select'
+    headers.source = [
+        'model/EdgeApp.h',
+        'model/SenseApp.h',
+        'model/ControlApp.h',
+        'model/Control1App.h',
+        'model/EdgeTag.h',
+        'model/TimeHeader.h',
+        'helper/Mac-Select-helper.h',
+        ]
+
+    if bld.env.ENABLE_EXAMPLES:
+        bld.recurse('examples')
+
+    # bld.ns3_python_bindings()
+
