@@ -44,19 +44,29 @@ namespace ns3 {
                         BooleanValue (false),
                         MakeBooleanAccessor (&EdgeApp::m_report),
                         MakeBooleanChecker())
-            .AddAttribute ("Port","port",
+            .AddAttribute ("sendPort","send port number",
                         UintegerValue(),
-                        MakeUintegerAccessor(&EdgeApp::m_port),
-                        MakeUintegerChecker<uint16_t>())
+                        MakeUintegerAccessor(&EdgeApp::m_localPort),
+                        MakeUintegerChecker<uint32_t>())
+            .AddAttribute ("receivePort","receive packet port num",
+                        UintegerValue(),
+                        MakeUintegerAccessor(&EdgeApp::m_receivePort),
+                        MakeUintegerChecker<uint32_t>())
             
         ;
         return tid;
     }
 
     EdgeApp::EdgeApp()
-        : m_socket(0),
+        : m_sendSocket(0),
+        m_csmaSocket(0),
+        m_tdmaSocket(0),
+        m_receiveSocket(0),
         m_peer(),
         m_local(),
+        m_localPort(0),
+        m_receivePort(0),
+        m_peerPort(0),
         m_sendEvent(),
         m_reEvent(),
         m_running(false),
@@ -73,11 +83,8 @@ namespace ns3 {
         m_report(false),
         m_metrxType(1),
         m_childIndex(0),
-        m_interfaces(),
-        m_interfaceIndex(0),
         m_fatherIndex(0),
-        m_port(),
-        m_BindDevice()
+        m_port()
     {
         // ReportOnTime();
     }
@@ -85,71 +92,63 @@ namespace ns3 {
     
     }
     void
-    EdgeApp::Setup (Ptr<NetDevice> BindDevice,Address local,uint32_t fatherIndex,Ptr<Socket> socket, Address peeraddress, uint32_t packetSize, uint32_t nPackets, DataRate dataRate,uint32_t childnum)
+    EdgeApp::Setup (uint32_t fatherIndex,uint32_t index,Ipv4InterfaceContainer locals,uint32_t localPort,uint32_t receivePort,Ipv4InterfaceContainer peers,uint32_t peerPort, uint32_t packetSize, uint32_t nPackets, DataRate dataRate)
     {
         m_fatherIndex = fatherIndex;
-        m_socket = socket;
-        m_peer = peeraddress;
+        m_childIndex = index;
+        m_locals = locals;
+        m_peers = peers;
+        m_localPort = localPort;
+        m_receivePort = receivePort;
+        m_peerPort = peerPort;        
+        
         m_packetSize = packetSize;
         m_nPackets = nPackets;
         m_dataRate = dataRate;
-        m_childIndex = childnum;
-        m_local = local;
-        m_BindDevice = BindDevice;
+
+        
+
     }
     
     void EdgeApp::StartApplication(void){
         std::cout<<"start Edge app"<<std::endl;
         m_running = true;
         m_packetsSent = 0;
+        //create two socket and send msg to different channel respectively;
+        m_csmaSocket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
+        m_csmaSocket->Bind(InetSocketAddress(m_locals.GetAddress(0),m_localPort));
+        m_csmaSocket->Connect(InetSocketAddress(m_peers.GetAddress(0),m_peerPort));
+        m_csmaSocket->SetRecvCallback(MakeCallback (&EdgeApp::HandleRead,this));
 
+        m_tdmaSocket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
+        m_tdmaSocket->Bind(InetSocketAddress(m_locals.GetAddress(1),m_localPort));
+        m_tdmaSocket->Connect(InetSocketAddress(m_peers.GetAddress(1),m_peerPort));
+        m_tdmaSocket->SetRecvCallback(MakeCallback (&EdgeApp::HandleRead,this));
 
-        // m_local = InetSocketAddress("10.1.2.2",m_port);
-        // NS_LOG_INFO ("m_local address and port"
-        //                << InetSocketAddress::ConvertFrom(m_local).GetIpv4 ()
-        //                << " port " << InetSocketAddress::ConvertFrom (m_local).GetPort ());
-      
-
-        // Ptr<Socket> tdma_Socket = Socket::CreateSocket (GetNode(), UdpSocketFactory::GetTypeId ());
-        // tdma_Socket->Bind(m_local);
-        // tdma_Socket->Connect(m_peer);
+        m_sendSocket = m_csmaSocket;
+        m_peer = InetSocketAddress(m_peers.GetAddress(0),m_peerPort);
+        m_local = InetSocketAddress(m_locals.GetAddress(0),m_localPort);
+    
+        // m_sendSocket = m_tdmaSocket;
+        // m_peer = InetSocketAddress(m_peers.GetAddress(1),m_peerPort);
+        // m_local = InetSocketAddress(m_locals.GetAddress(1),m_localPort);
         
         
-        // m_local = InetSocketAddress("10.1.1.2",m_port);
-        // NS_LOG_INFO ("m_local address and port"
-        //                << InetSocketAddress::ConvertFrom(m_local).GetIpv4 ()
-        //                << " port " << InetSocketAddress::ConvertFrom (m_local).GetPort ());
-        // Ptr<Socket> wifi_Socket = Socket::CreateSocket (GetNode(), UdpSocketFactory::GetTypeId ());
-        // wifi_Socket->Bind(m_local);
-        // wifi_Socket->Connect(m_peer);
+        m_receiveSocket = Socket::CreateSocket(GetNode(),UdpSocketFactory::GetTypeId());
+        InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(),m_receivePort);
+        m_receiveSocket->Bind(local);
+        m_receiveSocket->SetRecvCallback(MakeCallback (&EdgeApp::HandleRead,this));
         
-        // Address sockname;
-       
-        // m_socket = wifi_Socket;
-
-        // m_socket->GetSockName(sockname);
-        // NS_LOG_INFO("m_socket local name"
-        //             << InetSocketAddress::ConvertFrom(sockname).GetIpv4()
-        //             <<" Port " << InetSocketAddress::ConvertFrom(sockname).GetPort());
-
-        // m_socket = tdma_Socket;
-
-        // m_socket->GetSockName(sockname);
-        // NS_LOG_INFO("m_socket local name"
-        //             << InetSocketAddress::ConvertFrom(sockname).GetIpv4()
-        //             <<" Port " << InetSocketAddress::ConvertFrom(sockname).GetPort());
-
-
-        m_socket->BindToNetDevice(m_BindDevice);
-        m_socket->Bind(m_local);
-        m_socket->Connect (m_peer);
-        m_socket->SetRecvCallback(MakeCallback (&EdgeApp::HandleRead,this));
-        m_socket->SetAllowBroadcast(false);
-  
         
-
+        // Ptr <ns3::Ipv4> ipv4 = GetNode()->GetObject <ns3::Ipv4> ();
+        // for(uint32_t i = 0; i < GetNode()->GetNDevices();i++){
+        //     ipv4->GetRoutingProtocol ()->NotifyInterfaceUp(ipv4->GetInterfaceForDevice(GetNode()->GetDevice(i)));
+        // }     
+        // ipv4->GetRoutingProtocol ()->NotifyInterfaceDown(1);
+        // ipv4->GetRoutingProtocol () -> NotifyInterfaceDown (2);
         // if(m_report)
         //     ReportOnTime();
+        m_change = false;
         SendPacket ();
     }
     void EdgeApp::StopApplication(void){
@@ -160,26 +159,55 @@ namespace ns3 {
     }
 
     void EdgeApp::SendPacket(void){
-      
-
+        // if(Simulator::Now().GetSeconds() > 2 ){
+        //     Ptr <ns3::Ipv4> ipv4 = GetNode()->GetObject <ns3::Ipv4> ();
+        //     std::stringstream stream;
+        //     Ptr<OutputStreamWrapper> routingstream = Create<OutputStreamWrapper> (&stream);
+        //     ipv4->GetRoutingProtocol ()->PrintRoutingTable (routingstream);
+        //     NS_LOG_INFO("route table infomation\n" << stream.str());
+        // }
         Ptr<Packet> packet = Create<Packet> (m_packetSize);
         Address add;
-        m_socket->GetSockName(add);
-        
+        m_sendSocket->GetSockName(add);
         // set data tag : 0 data,1 up metrics,2 download control,3 download metrics
         EdgeTag tag;
         tag.SetTagValue(0); 
         packet->AddPacketTag(tag);
+
+        //set Edge Node index
+        SeqTsSizeHeader ts;
+        // NS_LOG_INFO("child Index"<<m_childIndex);
+        ts.SetSeq(m_childIndex);
+       
+
+        //set seq num
+        SeqTsSizeHeader seqnum;
+        seqnum.SetSeq(m_rtt.size());
+        
+        
         // set time header now
         TimeHeader header;
+        // NS_LOG_INFO("packet send time " << Simulator::Now().GetMilliSeconds());
         header.SetData((uint32_t)Simulator::Now().GetMilliSeconds());
+
         packet->AddHeader(header);
-        m_socket->SendTo(packet,0,m_peer);
-        NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds ()
-                       << "s EdgeApp application sent "
-                       <<  packet->GetSize () << " bytes to "
-                       << InetSocketAddress::ConvertFrom(m_peer).GetIpv4 ()
-                       << " port " << InetSocketAddress::ConvertFrom (m_peer).GetPort ());
+        packet->AddHeader(seqnum);
+        packet->AddHeader(ts);
+        
+        Address peerto;
+        m_sendSocket->GetPeerName(peerto);
+        m_rtt.push_back(Simulator::Now().GetMilliSeconds());
+        NS_LOG_INFO ("Ap Node "<< m_fatherIndex
+                    << " Edge Node "
+                    << m_childIndex
+                    <<" local address is "
+                    << InetSocketAddress::ConvertFrom(m_local).GetIpv4()
+                    << " At time " << Simulator::Now ().GetSeconds ()
+                    << "s EdgeApp application sent "
+                    << packet->GetSize () << " bytes to "
+                    << InetSocketAddress::ConvertFrom(peerto).GetIpv4 ()
+                    << " port " << InetSocketAddress::ConvertFrom (peerto).GetPort ());
+        m_sendSocket->SendTo(packet,0,peerto);
         if(++m_packetsSent < m_nPackets){
             ScheduleTx ();
         }
@@ -209,7 +237,7 @@ namespace ns3 {
         //add metrics header
         SeqTsSizeHeader metrics;
         if(m_count == 0){
-        metrics.SetSeq(0); 
+            metrics.SetSeq(0); 
         }else{
             metrics.SetSeq(m_avelatency / m_count);
         }
@@ -219,10 +247,11 @@ namespace ns3 {
             usingtdma.SetSeq(1);
         else
             usingtdma.SetSeq(0);
-        packet->AddHeader(nodeNum);
-        packet->AddHeader(metrics);
+        
         packet->AddHeader(usingtdma);
-        m_socket->Send(packet);
+        packet->AddHeader(metrics);
+        packet->AddHeader(nodeNum);
+        m_sendSocket->Send(packet);
         //reset 
         m_avelatency = 0;
         m_count = 0;
@@ -244,20 +273,24 @@ namespace ns3 {
     }
 
     void EdgeApp::UpdateMacPro(){
+        Ptr <ns3::Ipv4> ipv4 = GetNode()->GetObject<ns3::Ipv4> ();
+        
         if(m_change){
             std::cout<<"change mac"<<std::endl;
             if(m_usingtdma){ //tdma -> csma
                 std::cout<<"change mac tdma -> csma"<<std::endl;
                 // this->SetAttribute("Local",AddressValue(InetSocketAddress(m_interfaces.GetAddress(0))));
-                m_local = InetSocketAddress(m_interfaces.GetAddress(0));
-                m_socket->Bind(m_local);
+                // m_local = InetSocketAddress(m_interfaces.GetAddress(0));
+                // m_socket->Bind(m_local);
+                m_sendSocket = m_csmaSocket;
+                m_peer = InetSocketAddress(m_peers.GetAddress(0),m_peerPort);
+                m_local = InetSocketAddress(m_locals.GetAddress(0),m_localPort);
                 m_usingtdma = false;
             }else{   //csma -> tdma
                 std::cout<<"change mac csma -> tdma"<<std::endl;
-                
-                // this->SetAttribute("Local",AddressValue(InetSocketAddress(m_interfaces.GetAddress(1))));
-                m_local = InetSocketAddress(m_interfaces.GetAddress(1));
-                m_socket->Bind(m_local);
+                m_sendSocket = m_tdmaSocket;
+                m_peer = InetSocketAddress(m_peers.GetAddress(1),m_peerPort);
+                m_local = InetSocketAddress(m_locals.GetAddress(1),m_localPort);
                 m_usingtdma = true;
             }
         }
@@ -274,9 +307,17 @@ namespace ns3 {
         while ((packet = socket->RecvFrom(from)))
         {
             socket->GetSockName(localAddress);
-            NS_LOG_INFO ("EdgeApp:: At time " << Simulator::Now ().GetSeconds () << "s server received " << packet->GetSize () << " bytes from " <<
-                       InetSocketAddress::ConvertFrom (from).GetIpv4 () << " port " <<
-                       InetSocketAddress::ConvertFrom (from).GetPort ());
+            NS_LOG_INFO ("Ap Node "<<m_fatherIndex
+                            << " EdgeApp Node "
+                            << m_childIndex
+                            << " At time " 
+                            << Simulator::Now ().GetSeconds () 
+                            << " s server received " 
+                            << packet->GetSize () 
+                            << " bytes from " 
+                            << InetSocketAddress::ConvertFrom (from).GetIpv4 () 
+                            << " port " 
+                            << InetSocketAddress::ConvertFrom (from).GetPort ());
             m_rxTrace (packet);
             m_rxTraceWithAddress(packet,from,localAddress);
         
@@ -285,24 +326,31 @@ namespace ns3 {
                 packet->PeekPacketTag(tag);
                 
                 if (tag.GetTagValue() == 0) {
-            
-                    // NS_LOG_INFO("it is a data packet" + tag.GetTagValue());
-                    //ischange
+                    NS_LOG_INFO("Receive Data packet");
+                    //get packet seq num
+                    SeqTsSizeHeader seqnum;
+                    packet->RemoveHeader(seqnum);
+                    uint32_t index = seqnum.GetSeq();
+                    
+                    //get uplink time
                     SeqTsSizeHeader seqTs;
                     packet->RemoveHeader(seqTs);
                     uint32_t firstUpTime = seqTs.GetSeq();
+                    NS_LOG_INFO("fistr up time" << firstUpTime);
+                    
                     //reciv time
                     TimeHeader header;
                     packet->RemoveHeader(header);
                     Time time(Simulator::Now());
-                    CalculateRTT(header.GetData(),time.GetMilliSeconds());
+                    uint32_t downloadlinktime = time.GetMilliSeconds() - m_rtt[index];
+                    uint32_t rtt = firstUpTime + downloadlinktime;
+                    // CalculateRTT(header.GetData(),time.GetMilliSeconds());
                     m_count++;
-                    m_avelatency = m_avelatency + m_latencyNow + firstUpTime;
+                    m_avelatency = m_avelatency + rtt;
                 }else if(tag.GetTagValue() == 1){  // uplink metrics packet
                 
                 }else if (tag.GetTagValue() == 2 ){ //download control packet
-                
-                    // NS_LOG_INFO("it is a control packet" + tag.GetTagValue());
+                    NS_LOG_INFO("Receive Control packet");
                     SeqTsSizeHeader action;
                     packet->RemoveHeader(action);
                     uint32_t isChange = action.GetSeq();

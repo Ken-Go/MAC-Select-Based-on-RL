@@ -14,10 +14,14 @@ namespace ns3 {
                         AddressValue(),
                         MakeAddressAccessor(&Control1App::m_local),
                         MakeAddressChecker())
-            .AddAttribute ("Port","port",
+            .AddAttribute ("sendPort","send packet from port",
                         UintegerValue(0),
-                        MakeUintegerAccessor(&Control1App::m_port),
-                        MakeUintegerChecker<uint16_t>())
+                        MakeUintegerAccessor(&Control1App::m_sendPort),
+                        MakeUintegerChecker<uint32_t>())
+            .AddAttribute ("receivePort","receive packet from this port",
+                        UintegerValue(0),
+                        MakeUintegerAccessor(&Control1App::m_receivePort),
+                        MakeUintegerChecker<uint32_t>())
         ;
         return tid;
     }
@@ -25,11 +29,16 @@ namespace ns3 {
         : m_periods(),
         m_reports(),
         m_rti(),
-        m_sockets(),
+        m_sendSocket(),
+        m_receiveSocket(),
         m_local(),
-        m_childs(),
+        m_sendPort(),
+        m_receivePort(),
+        m_peer(),
+        m_peerPort(),
+        m_children(),
         m_childnum(0),
-        m_port()
+        m_periodBroad()
     {
         
     }
@@ -38,11 +47,11 @@ namespace ns3 {
 
     }
     void 
-    Control1App::Setup(Ptr<Socket> sockets,Ipv4InterfaceContainer children,Address local,uint32_t childnum){
-        m_sockets = sockets;
-        m_childs = children;
-        m_local = local;
+    Control1App::Setup(uint32_t childnum,Address local,uint32_t sendPort,uint32_t receivePort,Address peer,uint32_t peerPort,Ipv4InterfaceContainer children){
         m_childnum = childnum;
+        m_children = children;
+        m_local = local;
+        
         m_periods = 20;
         m_reports.resize(m_childnum,true);
         m_rti.resize(m_childnum,5);
@@ -51,14 +60,22 @@ namespace ns3 {
     void
     Control1App::StartApplication(void){
         std::cout<<"Start Control Left"<<std::endl;
-        if(!m_local.IsInvalid()){
-            m_sockets->Bind(m_local);
-        }else{
-            m_sockets->Bind();
-        }
+        
+        m_sendSocket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
+        m_sendSocket->Bind(m_local);
+        m_sendSocket->Connect(m_peer);
+        m_sendSocket->SetRecvCallback(MakeCallback (&Control1App::HandleRead,this));
 
-        broadcast();
-        m_sockets->SetRecvCallback(MakeCallback(&Control1App::HandleRead,this));
+        m_receiveSocket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
+        InetSocketAddress receive_local = InetSocketAddress(Ipv4Address::GetAny(),m_receivePort);
+        m_receiveSocket->Bind(receive_local);
+        m_receiveSocket->SetRecvCallback(MakeCallback(&Control1App::HandleRead,this));
+        // Ptr <ns3::Ipv4> ipv4 = GetNode()->GetObject <ns3::Ipv4> ();
+        // for(uint32_t i = 0; i < GetNode()->GetNDevices();i++){
+        //     ipv4->GetRoutingProtocol ()->NotifyInterfaceUp(ipv4->GetInterfaceForDevice(GetNode()->GetDevice(i)));
+        // }  
+        // broadcast();
+        
     }
     void
     Control1App::StopApplication(void){}
@@ -110,6 +127,7 @@ namespace ns3 {
 
         SeqTsSizeHeader rti;
         rti.SetSeq(m_rti[addindex]);
+        
         SeqTsSizeHeader report;
         if(m_reports[addindex] == true)
             report.SetSeq(1);
@@ -117,8 +135,8 @@ namespace ns3 {
         {
             report.SetSeq(0);
         }
-        packet->AddHeader(rti);
         packet->AddHeader(report);
-        m_sockets->SendTo(packet,0,m_childs.GetAddress(addindex));
+        packet->AddHeader(rti);
+        m_sendSocket->SendTo(packet,0,InetSocketAddress(m_children.GetAddress(addindex),m_peerPort));
     }
 }

@@ -32,17 +32,24 @@ namespace ns3 {
         static TypeId GetTypeId(void);
         Control1App();
         virtual ~Control1App();
-        void Setup(Ptr<Socket> sockets,Ipv4InterfaceContainer children,Address local,uint32_t m_childnum);
+        void Setup(uint32_t childnum,Address local,uint32_t sendPort,uint32_t receivePort,Address peer,uint32_t peerPort,Ipv4InterfaceContainer children);
     private:
         uint32_t m_periods;
         std::vector<bool> m_reports;
         std::vector<uint32_t> m_rti;
-        Ptr<Socket> m_sockets;
+        Ptr<Socket> m_sendSocket;
+        Ptr<Socket> m_receiveSocket;
         Address m_local;
-        Ipv4InterfaceContainer m_childs;
+        uint32_t m_sendPort;
+        uint32_t m_receivePort;
+        Address m_peer;
+        uint32_t m_peerPort;
+
+        Ipv4InterfaceContainer m_children;
         uint32_t m_childnum;
         EventId m_periodBroad;
-        uint16_t m_port;
+        
+        
         void broadcast();
         void ScheduleBroadcast();
         virtual void StartApplication(void);

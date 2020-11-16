@@ -91,7 +91,6 @@ uint32_t QLearn::argmax(uint32_t line){
 
 uint32_t QLearn::choose_action()
 {
-
     uint32_t action_name;
     srand(time(0));
     double random = rand()%(10000)/(float)(10000);
@@ -101,6 +100,7 @@ uint32_t QLearn::choose_action()
     }else{
         action_name = Action[argmax(now_state)];
     }
+    
     take_action = action_name;
     next_state = action_name;
     return action_name;
@@ -128,8 +128,7 @@ public:
     static  TypeId GetTypeId(void);
     ControlApp();
     virtual ~ControlApp();
-    void Setup(Ptr<Socket> sockets,Ipv4InterfaceContainer childs,uint32_t m_apnum,uint32_t m_edgenum,uint32_t m_allnum,Address m_local);
-
+    void Setup(uint32_t apnum,uint32_t edgeOfAp,Address local,uint32_t sendPort,uint32_t receivePort,Address peer,uint32_t peerPort,Ipv4InterfaceContainer children);
 private:
     std::vector<std::vector<QLearn*> >  m_qlearns;
     std::vector<std::vector<uint32_t> >  m_metrics;
@@ -139,13 +138,19 @@ private:
     uint32_t m_edgenum;
     uint32_t m_allnum;
     
-    Ptr<Socket> m_socket;
-    Ipv4InterfaceContainer     m_childs;
+    Ptr<Socket> m_sendSocket;
+    Ptr<Socket> m_receiveSocket;
+    Ipv4InterfaceContainer     m_children;
     Address m_local;
+    Address m_peer;
+    uint32_t m_sendPort;
+    uint32_t m_receivePort;
+    uint32_t m_peerPort;
+    
+
     EventId  m_updataEvent;
     uint32_t m_count;
-    uint16_t m_port;
-    Address m_peer;
+    
 
     virtual void StartApplication(void);
     virtual void StopApplication(void);

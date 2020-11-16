@@ -14,25 +14,35 @@ namespace ns3 {
                         AddressValue(),
                         MakeAddressAccessor(&ControlApp::m_local),
                         MakeAddressChecker())
-            .AddAttribute ("Port","port",
+            .AddAttribute ("sendPort","send packet from this port",
                         UintegerValue(0),
-                        MakeUintegerAccessor(&ControlApp::m_port),
-                        MakeUintegerChecker<uint16_t>())
+                        MakeUintegerAccessor(&ControlApp::m_sendPort),
+                        MakeUintegerChecker<uint32_t>())
+            .AddAttribute ("receivePort","receive packet from this port",
+                        UintegerValue(0),
+                        MakeUintegerAccessor(&ControlApp::m_receivePort),
+                        MakeUintegerChecker<uint32_t>())
         ;
         return tid;
     }
     ControlApp::ControlApp()
         : m_qlearns(),
         m_metrics(),
+        m_states(),
+        m_lastMetrics(),
         m_apnum(0),
+        m_edgenum(),
         m_allnum(0), 
-        m_socket(),
-        m_childs(),
+        m_sendSocket(),
+        m_receiveSocket(),
+        m_children(),
         m_local(),
+        m_peer(),
+        m_sendPort(0),
+        m_receivePort(0),
+        m_peerPort(0),
         m_updataEvent(),
-        m_count(0),
-        m_port(0),
-        m_peer()
+        m_count(0)
     {
         
     }
@@ -40,24 +50,26 @@ namespace ns3 {
 
     }
     void 
-    ControlApp::Setup(Ptr<Socket> socket,Ipv4InterfaceContainer childs,uint32_t apnum,uint32_t edgenum,uint32_t allnum,Address local)
+    ControlApp::Setup(uint32_t apnum,uint32_t edgeOfAp,Address local,uint32_t sendPort,uint32_t receivePort,Address peer,uint32_t peerPort,Ipv4InterfaceContainer children)
     {
-        m_local = local;
-        m_socket = socket;
-        m_childs = childs;
         m_apnum = apnum;
-        m_edgenum = edgenum;
-        m_allnum = allnum;
-        
+        m_edgenum = edgeOfAp;
+        m_local = local;
+        m_children = children;
+        m_sendPort = sendPort;
+        m_receivePort = receivePort;
+        m_peerPort = peerPort;
+        m_peer = peer;
+
         m_qlearns.resize(m_apnum);
         m_metrics.resize(m_apnum);
         m_states.resize(m_apnum);
         m_lastMetrics.resize(m_apnum);
         for(uint32_t i =0;i < m_apnum;i++){
-            m_qlearns[i].resize(edgenum);
-            m_metrics[i].resize(edgenum);
-            m_states[i].resize(edgenum);
-            m_lastMetrics[i].resize(edgenum);
+            m_qlearns[i].resize(m_edgenum);
+            m_metrics[i].resize(m_edgenum);
+            m_states[i].resize(m_edgenum);
+            m_lastMetrics[i].resize(m_edgenum);
         }
         for(uint32_t i = 0; i < m_apnum;i++){
             for(uint32_t j = 0; j < m_edgenum;j++){
@@ -94,32 +106,42 @@ namespace ns3 {
         EdgeTag tag;
         tag.SetTagValue(3);
         packet->AddPacketTag(tag);
+
         SeqTsSizeHeader nums;
         nums.SetSeq(m_edgenum);
-        packet->AddHeader(nums);
+        
         std::vector<SeqTsSizeHeader> headers(m_edgenum);
-        for(uint32_t i; i < m_edgenum;i++){
+        for(int i = m_edgenum-1; i >= 0;i--){
             headers[i].SetSeq(m_qlearns[apIndex][i]->choose_action());
             packet->AddHeader(headers[i]);
         }
+        packet->AddHeader(nums);
+        // socket->Send(packet,0);
         socket->SendTo(packet,0,from);
     }
     void
     ControlApp::StartApplication(void){
         std::cout<<"Start Control App"<<std::endl;
-        InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny(),m_port);
-        m_socket->Bind(local);
-        m_socket->Connect(InetSocketAddress(m_childs.GetAddress(0),m_port));
-        m_socket->SetRecvCallback(MakeCallback (&ControlApp::HandleRead,this));
-        
+
+        m_sendSocket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
+        m_sendSocket->Bind(m_local);
+        m_sendSocket->Connect(m_peer);
+        m_sendSocket->SetRecvCallback(MakeCallback (&ControlApp::HandleRead,this));
+
+        m_receiveSocket = Socket::CreateSocket(GetNode(), UdpSocketFactory::GetTypeId());
+        InetSocketAddress receive_local = InetSocketAddress(Ipv4Address::GetAny(),m_receivePort);
+        m_receiveSocket->Bind(receive_local);
+        m_receiveSocket->SetRecvCallback(MakeCallback (&ControlApp::HandleRead,this));
+
         for(uint32_t i = 0; i < m_apnum;i++){
             for(uint32_t j = 0; j < m_edgenum;j++){
                 m_qlearns[i][j]->get_env_feedback(0,0);
             }
-            std::cout<<"send init control to Sense"<<m_childs.GetN()<<std::endl;
-            SendControl(m_socket,i,m_childs.GetAddress(i));
+            std::cout<<"send init control to Sense "<<i<<std::endl;
+            SendControl(m_sendSocket,i,InetSocketAddress(m_children.GetAddress(i),m_peerPort));
         }
         std::cout<<"finish"<<std::endl;
+        
     }
     void
     ControlApp::StopApplication(void) {
