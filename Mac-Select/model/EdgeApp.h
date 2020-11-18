@@ -1,5 +1,6 @@
 #ifndef EDGE_APP_H
 #define EDGE_APP_H
+
 #include "ns3/core-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/traced-callback.h"
@@ -20,16 +21,17 @@
 #include "ns3/udp-l4-protocol.h"
 #include "EdgeTag.h"
 #include "TimeHeader.h"
+#include "PacketInfo.h"
 #include <iostream>
 #include <cmath>
 #include <fstream>
 #include <string>
+#include <sstream>
 #include <cassert>
 #include <vector>
 
 
 namespace ns3 {
-
 
 class EdgeApp : public Application{
 public:
@@ -84,6 +86,9 @@ private:
     uint32_t m_fatherIndex;         //Ap index
     uint16_t m_port;                // port to listen packet
     std::vector<uint32_t> m_rtt;    // remember m_rtt time
+    std::ofstream m_outStream;
+    uint32_t m_packetSeq;
+    std::vector<PacketInfo>  m_PacketInfos;
 };
 }
 #endif

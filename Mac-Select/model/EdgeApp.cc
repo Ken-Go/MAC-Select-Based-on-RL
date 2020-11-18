@@ -84,7 +84,9 @@ namespace ns3 {
         m_metrxType(1),
         m_childIndex(0),
         m_fatherIndex(0),
-        m_port()
+        m_port(),
+        m_outStream(),
+        m_packetSeq()
     {
         // ReportOnTime();
     }
@@ -105,8 +107,7 @@ namespace ns3 {
         m_packetSize = packetSize;
         m_nPackets = nPackets;
         m_dataRate = dataRate;
-
-        
+        m_packetSeq = 0;
 
     }
     
@@ -139,33 +140,26 @@ namespace ns3 {
         m_receiveSocket->Bind(local);
         m_receiveSocket->SetRecvCallback(MakeCallback (&EdgeApp::HandleRead,this));
         
+        std::stringstream ss;
+        ss<<"ApNode"<<m_fatherIndex<<"EdgeNode"<<m_childIndex<<".txt";
+        m_outStream.open(ss.str(),std::ofstream::out | std::ofstream::app);
         
-        // Ptr <ns3::Ipv4> ipv4 = GetNode()->GetObject <ns3::Ipv4> ();
-        // for(uint32_t i = 0; i < GetNode()->GetNDevices();i++){
-        //     ipv4->GetRoutingProtocol ()->NotifyInterfaceUp(ipv4->GetInterfaceForDevice(GetNode()->GetDevice(i)));
-        // }     
-        // ipv4->GetRoutingProtocol ()->NotifyInterfaceDown(1);
-        // ipv4->GetRoutingProtocol () -> NotifyInterfaceDown (2);
+        // m_outStream.close();
         // if(m_report)
         //     ReportOnTime();
         m_change = false;
         SendPacket ();
+
     }
     void EdgeApp::StopApplication(void){
         m_running = false;
         if(m_sendEvent.IsRunning ()){
             Simulator::Cancel(m_sendEvent);
         }
+        m_outStream.close();
     }
 
     void EdgeApp::SendPacket(void){
-        // if(Simulator::Now().GetSeconds() > 2 ){
-        //     Ptr <ns3::Ipv4> ipv4 = GetNode()->GetObject <ns3::Ipv4> ();
-        //     std::stringstream stream;
-        //     Ptr<OutputStreamWrapper> routingstream = Create<OutputStreamWrapper> (&stream);
-        //     ipv4->GetRoutingProtocol ()->PrintRoutingTable (routingstream);
-        //     NS_LOG_INFO("route table infomation\n" << stream.str());
-        // }
         Ptr<Packet> packet = Create<Packet> (m_packetSize);
         Address add;
         m_sendSocket->GetSockName(add);
@@ -176,27 +170,26 @@ namespace ns3 {
 
         //set Edge Node index
         SeqTsSizeHeader ts;
-        // NS_LOG_INFO("child Index"<<m_childIndex);
         ts.SetSeq(m_childIndex);
        
 
         //set seq num
         SeqTsSizeHeader seqnum;
-        seqnum.SetSeq(m_rtt.size());
+        seqnum.SetSeq(m_packetSeq);
         
         
         // set time header now
         TimeHeader header;
-        // NS_LOG_INFO("packet send time " << Simulator::Now().GetMilliSeconds());
         header.SetData((uint32_t)Simulator::Now().GetMilliSeconds());
 
         packet->AddHeader(header);
         packet->AddHeader(seqnum);
         packet->AddHeader(ts);
-        
+            
         Address peerto;
         m_sendSocket->GetPeerName(peerto);
-        m_rtt.push_back(Simulator::Now().GetMilliSeconds());
+        
+        
         NS_LOG_INFO ("Ap Node "<< m_fatherIndex
                     << " Edge Node "
                     << m_childIndex
@@ -207,7 +200,21 @@ namespace ns3 {
                     << packet->GetSize () << " bytes to "
                     << InetSocketAddress::ConvertFrom(peerto).GetIpv4 ()
                     << " port " << InetSocketAddress::ConvertFrom (peerto).GetPort ());
+        
         m_sendSocket->SendTo(packet,0,peerto);
+        PacketInfo packetInfo;
+        packetInfo.SetSendTime(Simulator::Now ().GetMilliSeconds ());
+        packetInfo.SetSeq(m_packetSeq);
+        if (m_usingtdma){
+            packetInfo.SetMacProtocol("TDMA");
+        }else{
+            packetInfo.SetMacProtocol("CSMA");
+        }
+        packetInfo.SetLength(packet->GetSize());
+        packetInfo.SetSource(m_local);
+        packetInfo.SetDestination(peerto);
+        m_PacketInfos.push_back(packetInfo);
+        m_packetSeq++;
         if(++m_packetsSent < m_nPackets){
             ScheduleTx ();
         }
@@ -255,6 +262,11 @@ namespace ns3 {
         //reset 
         m_avelatency = 0;
         m_count = 0;
+
+        // std::stringstream writeline;
+        // writeline<<"\n"<<m_rtt.size()<<"\t"<<Simulator::Now().GetSeconds()<<"\t";
+        // m_outStream<<writeline.str();
+        
         if((uint32_t)Simulator::Now().GetSeconds() % m_rti == 0 || Simulator::Now().GetSeconds() == 0){
             // scheduleRe();
             std::cout<<"the time is "<<Simulator::Now().GetSeconds()<<" s"<<std::endl;
@@ -331,19 +343,33 @@ namespace ns3 {
                     SeqTsSizeHeader seqnum;
                     packet->RemoveHeader(seqnum);
                     uint32_t index = seqnum.GetSeq();
-                    
+                    NS_LOG_INFO("receive seq is : " << index);
+
                     //get uplink time
                     SeqTsSizeHeader seqTs;
                     packet->RemoveHeader(seqTs);
                     uint32_t firstUpTime = seqTs.GetSeq();
-                    NS_LOG_INFO("fistr up time" << firstUpTime);
+                    NS_LOG_INFO("fistr up time " << firstUpTime << " ms");
                     
                     //reciv time
                     TimeHeader header;
                     packet->RemoveHeader(header);
+                    uint32_t downlinkSendtime = header.GetData();
+                    NS_LOG_INFO("downlinkSendtime " << downlinkSendtime << " ms");
+
                     Time time(Simulator::Now());
-                    uint32_t downloadlinktime = time.GetMilliSeconds() - m_rtt[index];
+                    uint32_t downloadlinktime = time.GetMilliSeconds() - downlinkSendtime;
                     uint32_t rtt = firstUpTime + downloadlinktime;
+                    // NS_LOG_INFO("m_PacketInfos size is : " << m_PacketInfos.size());
+                    if(m_PacketInfos[index].getSeq() != index ){
+                        NS_ASSERT("Infomation index is wrong!!");
+                    }else{
+                        m_PacketInfos[index].SetReceiveTime(Simulator::Now().GetMilliSeconds());
+                        m_PacketInfos[index].SetRtt(rtt);  
+                        std::stringstream ss;
+                        ss<<m_PacketInfos[index].getSeq()<<"\t"<<m_PacketInfos[index].getMacProtocol()<<"\t"<<m_PacketInfos[index].getSendTime()<<"\t"<<m_PacketInfos[index].getReceiveTime()<<"\t"<<InetSocketAddress::ConvertFrom(m_PacketInfos[index].getSource()).GetIpv4()<<"\t"<<InetSocketAddress::ConvertFrom(m_PacketInfos[index].getDestination()).GetIpv4()<<"\t"<<m_PacketInfos[index].getLength()<<"\t"<<m_PacketInfos[index].getRtt()<<"\n";
+                        m_outStream<<ss.str();
+                    }
                     // CalculateRTT(header.GetData(),time.GetMilliSeconds());
                     m_count++;
                     m_avelatency = m_avelatency + rtt;

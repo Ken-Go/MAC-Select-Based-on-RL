@@ -171,13 +171,16 @@ namespace ns3 {
                     tag.SetTagValue(0);
                     pac->AddPacketTag(tag);
 
+                    //set seq num
                     SeqTsSizeHeader seq2num;
                     seq2num.SetSeq(seq_num);
                     
-
+                    // set uplink time
                     SeqTsSizeHeader header1;
                     header1.SetSeq(m_upTime);
                     
+
+                    // set downlink send time
                     TimeHeader header2;
                     header2.SetData(Simulator::Now().GetMilliSeconds());
                     

@@ -15,6 +15,8 @@ def build(bld):
         'model/Control1App.cc',
         'model/EdgeTag.cc',
         'model/TimeHeader.cc',
+        'model/PacketInfo.cc',
+        'model/QLearn.cc',
         'helper/Mac-Select-helper.cc',
         ]
 
@@ -37,6 +39,8 @@ def build(bld):
         'model/Control1App.h',
         'model/EdgeTag.h',
         'model/TimeHeader.h',
+        'model/PacketInfo.h',
+        'model/QLearn.h',
         'helper/Mac-Select-helper.h',
         ]
 
