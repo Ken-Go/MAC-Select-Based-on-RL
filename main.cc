@@ -163,8 +163,8 @@ main(int argc, char *argv[])
                                 "Y",StringValue("0"),
                                 "Rho",StringValue("ns3::UniformRandomVariable[Min=0.0|Max=25.0]"));
     mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
-                            "Bounds",RectangleValue(Rectangle(-100,100,-100,100)),
-                            "Distance",DoubleValue(10),
+                            "Bounds",RectangleValue(Rectangle(-50,50,-50,50)),
+                            "Distance",DoubleValue(5),
                             "Mode",StringValue("Distance"));
     mobility.Install(wifiStaNodes[0]);
     mobility.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
@@ -172,8 +172,8 @@ main(int argc, char *argv[])
                                 "Y",StringValue("0"),
                                 "Rho",StringValue("ns3::UniformRandomVariable[Min=0.0|Max=25.0]"));
     mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
-                            "Bounds",RectangleValue(Rectangle(100,300,-100,100)),
-                            "Distance",DoubleValue(10),
+                            "Bounds",RectangleValue(Rectangle(150,250,-50,50)),
+                            "Distance",DoubleValue(5),
                             "Mode",StringValue("Distance"));
     mobility.Install(wifiStaNodes[1]);
     mobility.SetPositionAllocator("ns3::RandomDiscPositionAllocator",
@@ -181,8 +181,8 @@ main(int argc, char *argv[])
                                 "Y",StringValue("0"),
                                 "Rho",StringValue("ns3::UniformRandomVariable[Min=0.0|Max=25.0]"));
     mobility.SetMobilityModel("ns3::RandomWalk2dMobilityModel",
-                            "Bounds",RectangleValue(Rectangle(300,500,-100,100)),
-                            "Distance",DoubleValue(10),
+                            "Bounds",RectangleValue(Rectangle(350,450,-50,50)),
+                            "Distance",DoubleValue(5),
                             "Mode",StringValue("Distance"));
     mobility.Install(wifiStaNodes[2]);
 
@@ -281,43 +281,43 @@ main(int argc, char *argv[])
 
     //build route table
     //print all ip address
-    for(uint32_t i = 0;i < Ap; i++){
-        Ptr<Ipv4> ipv4 = wifiApNodes.Get(i)->GetObject<Ipv4> ();
-        NS_LOG_INFO("AP Node " << i << " has " << ipv4->GetNInterfaces() << " interfaces: \n");
-        for(uint32_t j = 0; j < ipv4->GetNInterfaces();++j){
-            NS_LOG_INFO("\tInterface " << j << " has " << ipv4->GetNAddresses(j) << " addresses:\n" );
-            for(uint32_t k = 0; k < ipv4->GetNAddresses(j);k++){
-                NS_LOG_INFO("\t\t"<<ipv4->GetAddress(j,k).GetLocal() <<" \n");
-            }
-        }
-        for(uint32_t inode = 0;inode < nodeofAp; inode++){
-            Ptr<Ipv4> ipv4 = wifiStaNodes[i].Get(inode)->GetObject<Ipv4> ();
-            NS_LOG_INFO("AP Node " << i << " Edge Node "<<inode<<" has " << ipv4->GetNInterfaces() << " interfaces: \n");
-            for(uint32_t j = 0; j < ipv4->GetNInterfaces();++j){
-                NS_LOG_INFO("\tInterface " << j << " has " << ipv4->GetNAddresses(j) << " addresses:\n" );
-                for(uint32_t k = 0; k < ipv4->GetNAddresses(j);k++){
-                    NS_LOG_INFO("\t\t"<<ipv4->GetAddress(j,k).GetLocal() <<" \n");
-                }
-            }
-        }
-    }
+    // for(uint32_t i = 0;i < Ap; i++){
+    //     Ptr<Ipv4> ipv4 = wifiApNodes.Get(i)->GetObject<Ipv4> ();
+    //     NS_LOG_INFO("AP Node " << i << " has " << ipv4->GetNInterfaces() << " interfaces: \n");
+    //     for(uint32_t j = 0; j < ipv4->GetNInterfaces();++j){
+    //         NS_LOG_INFO("\tInterface " << j << " has " << ipv4->GetNAddresses(j) << " addresses:\n" );
+    //         for(uint32_t k = 0; k < ipv4->GetNAddresses(j);k++){
+    //             NS_LOG_INFO("\t\t"<<ipv4->GetAddress(j,k).GetLocal() <<" \n");
+    //         }
+    //     }
+    //     for(uint32_t inode = 0;inode < nodeofAp; inode++){
+    //         Ptr<Ipv4> ipv4 = wifiStaNodes[i].Get(inode)->GetObject<Ipv4> ();
+    //         NS_LOG_INFO("AP Node " << i << " Edge Node "<<inode<<" has " << ipv4->GetNInterfaces() << " interfaces: \n");
+    //         for(uint32_t j = 0; j < ipv4->GetNInterfaces();++j){
+    //             NS_LOG_INFO("\tInterface " << j << " has " << ipv4->GetNAddresses(j) << " addresses:\n" );
+    //             for(uint32_t k = 0; k < ipv4->GetNAddresses(j);k++){
+    //                 NS_LOG_INFO("\t\t"<<ipv4->GetAddress(j,k).GetLocal() <<" \n");
+    //             }
+    //         }
+    //     }
+    // }
     Ptr<Ipv4> control_ipv4 = ControlNode.Get(0)->GetObject<Ipv4> ();
     Ptr<Ipv4> controlL_ipv4 = ControlLeftNode.Get(0)->GetObject<Ipv4> ();
-    NS_LOG_INFO("Control Node has " << control_ipv4->GetNInterfaces() << " interfaces: \n");
-    for(uint32_t j = 0; j < control_ipv4->GetNInterfaces();++j){
-        NS_LOG_INFO("\tInterface " << j << " has " << control_ipv4->GetNAddresses(j) << " addresses:\n" );
-        for(uint32_t k = 0; k < control_ipv4->GetNAddresses(j);k++){
-            NS_LOG_INFO("\t\t"<<control_ipv4->GetAddress(j,k).GetLocal() <<" \n");
-        }
-    }
+    // NS_LOG_INFO("Control Node has " << control_ipv4->GetNInterfaces() << " interfaces: \n");
+    // for(uint32_t j = 0; j < control_ipv4->GetNInterfaces();++j){
+    //     NS_LOG_INFO("\tInterface " << j << " has " << control_ipv4->GetNAddresses(j) << " addresses:\n" );
+    //     for(uint32_t k = 0; k < control_ipv4->GetNAddresses(j);k++){
+    //         NS_LOG_INFO("\t\t"<<control_ipv4->GetAddress(j,k).GetLocal() <<" \n");
+    //     }
+    // }
     
-    NS_LOG_INFO("Control Left Node has " << controlL_ipv4->GetNInterfaces() << " interfaces: \n");
-    for(uint32_t j = 0; j < controlL_ipv4->GetNInterfaces();++j){
-        NS_LOG_INFO("\tInterface " << j << " has " << controlL_ipv4->GetNAddresses(j) << " addresses:\n" );
-        for(uint32_t k = 0; k < controlL_ipv4->GetNAddresses(j);k++){
-            NS_LOG_INFO("\t\t"<<controlL_ipv4->GetAddress(j,k).GetLocal() <<" \n");
-        }
-    }
+    // NS_LOG_INFO("Control Left Node has " << controlL_ipv4->GetNInterfaces() << " interfaces: \n");
+    // for(uint32_t j = 0; j < controlL_ipv4->GetNInterfaces();++j){
+    //     NS_LOG_INFO("\tInterface " << j << " has " << controlL_ipv4->GetNAddresses(j) << " addresses:\n" );
+    //     for(uint32_t k = 0; k < controlL_ipv4->GetNAddresses(j);k++){
+    //         NS_LOG_INFO("\t\t"<<controlL_ipv4->GetAddress(j,k).GetLocal() <<" \n");
+    //     }
+    // }
 
     Ipv4StaticRoutingHelper staticroutinghelper;
     //Ap node build static route table
@@ -370,6 +370,17 @@ main(int argc, char *argv[])
         // std::cout<<"base address " << base_address.str().c_str() << std::endl;    
         control_staticRouting->AddHostRouteTo(Ipv4Address(base_address.str().c_str()),k);
     }
+    for(uint32_t k = 1;k < controlL_ipv4->GetNInterfaces() ;k++){
+        std::ostringstream hop_address,dest_csma_address;
+        hop_address<<"10.1."<<(6+k)<<".2";
+        dest_csma_address<<"10.1."<<2*k - 1<<".1";
+        // std::cout<<"base address " << base_address.str().c_str() << std::endl;    
+        control_staticRouting->AddHostRouteTo(Ipv4Address(dest_csma_address.str().c_str()),Ipv4Address(hop_address.str().c_str()),k);
+        std::ostringstream dest_tdma_address;
+        dest_tdma_address<<"10.1."<<2*k <<".1";
+        // std::cout<<"base address " << base_address.str().c_str() << std::endl;    
+        control_staticRouting->AddHostRouteTo(Ipv4Address(dest_tdma_address.str().c_str()),Ipv4Address(hop_address.str().c_str()),k);
+    }
 
     Ptr<Ipv4StaticRouting> controlL_staticRouting =  staticroutinghelper.GetStaticRouting(controlL_ipv4);
     for(uint32_t k = 1;k < controlL_ipv4->GetNInterfaces() ;k++){
@@ -378,38 +389,49 @@ main(int argc, char *argv[])
         // std::cout<<"base address " << base_address.str().c_str() << std::endl;    
         controlL_staticRouting->AddHostRouteTo(Ipv4Address(base_address.str().c_str()),k);
     }
+    for(uint32_t k = 1;k < controlL_ipv4->GetNInterfaces() ;k++){
+        std::ostringstream hop_address,dest_csma_address,dest_tdma_address;
+        hop_address<<"10.1."<<(9+k)<<".2";
+        dest_csma_address<<"10.1."<<2*k - 1<<".1";
+        // std::cout<<"base address " << base_address.str().c_str() << std::endl;    
+        controlL_staticRouting->AddHostRouteTo(Ipv4Address(dest_csma_address.str().c_str()),Ipv4Address(hop_address.str().c_str()),k);
+        
+        dest_tdma_address<<"10.1."<<2*k<<".1";
+        // std::cout<<"base address " << base_address.str().c_str() << std::endl;    
+        controlL_staticRouting->AddHostRouteTo(Ipv4Address(dest_tdma_address.str().c_str()),Ipv4Address(hop_address.str().c_str()),k);
+    }
     
 
 
-    for(uint32_t i = 0; i < Ap;i++){
-        for(uint32_t  j = 0; j < nodeofAp; j++){
-            Ptr <ns3::Ipv4> ipv4 = wifiStaNodes[i].Get(j)->GetObject <ns3::Ipv4> ();
-            std::stringstream stream;
-            Ptr<OutputStreamWrapper> routingstream = Create<OutputStreamWrapper> (&stream);
-            ipv4->GetRoutingProtocol ()->PrintRoutingTable (routingstream);
-            NS_LOG_INFO("route table infomation\n" << stream.str());
-        }
-    }
+    // for(uint32_t i = 0; i < Ap;i++){
+    //     for(uint32_t  j = 0; j < nodeofAp; j++){
+    //         Ptr <ns3::Ipv4> ipv4 = wifiStaNodes[i].Get(j)->GetObject <ns3::Ipv4> ();
+    //         std::stringstream stream;
+    //         Ptr<OutputStreamWrapper> routingstream = Create<OutputStreamWrapper> (&stream);
+    //         ipv4->GetRoutingProtocol ()->PrintRoutingTable (routingstream);
+    //         NS_LOG_INFO("route table infomation\n" << stream.str());
+    //     }
+    // }
     
-    for(uint32_t i = 0; i < Ap;i++){
-        Ptr <ns3::Ipv4> ipv4 = wifiApNodes.Get(i)->GetObject <ns3::Ipv4> ();
-        std::stringstream stream;
-        Ptr<OutputStreamWrapper> routingstream = Create<OutputStreamWrapper> (&stream);
-        ipv4->GetRoutingProtocol ()->PrintRoutingTable (routingstream);
-        NS_LOG_INFO("route table infomation\n" << stream.str());
-    }
+    // for(uint32_t i = 0; i < Ap;i++){
+    //     Ptr <ns3::Ipv4> ipv4 = wifiApNodes.Get(i)->GetObject <ns3::Ipv4> ();
+    //     std::stringstream stream;
+    //     Ptr<OutputStreamWrapper> routingstream = Create<OutputStreamWrapper> (&stream);
+    //     ipv4->GetRoutingProtocol ()->PrintRoutingTable (routingstream);
+    //     NS_LOG_INFO("route table infomation\n" << stream.str());
+    // }
     
-    // Ptr <ns3::Ipv4> coipv4 = ControlNode.Get(0)->GetObject <ns3::Ipv4> ();
-    std::stringstream control_stream;
-    Ptr<OutputStreamWrapper> control_routingstream = Create<OutputStreamWrapper> (&control_stream);
-    control_ipv4->GetRoutingProtocol ()->PrintRoutingTable (control_routingstream);
-    NS_LOG_INFO("route table infomation\n" << control_stream.str());
+    // // Ptr <ns3::Ipv4> coipv4 = ControlNode.Get(0)->GetObject <ns3::Ipv4> ();
+    // std::stringstream control_stream;
+    // Ptr<OutputStreamWrapper> control_routingstream = Create<OutputStreamWrapper> (&control_stream);
+    // control_ipv4->GetRoutingProtocol ()->PrintRoutingTable (control_routingstream);
+    // NS_LOG_INFO("route table infomation\n" << control_stream.str());
     
-    // Ptr <ns3::Ipv4> ipv4 = ControlLeftNode.Get(0)->GetObject <ns3::Ipv4> ();
-    std::stringstream controlL_stream;
-    Ptr<OutputStreamWrapper> controlL_routingstream = Create<OutputStreamWrapper> (&controlL_stream);
-    controlL_ipv4->GetRoutingProtocol ()->PrintRoutingTable (controlL_routingstream);
-    NS_LOG_INFO("route table infomation\n" << controlL_stream.str());
+    // // Ptr <ns3::Ipv4> ipv4 = ControlLeftNode.Get(0)->GetObject <ns3::Ipv4> ();
+    // std::stringstream controlL_stream;
+    // Ptr<OutputStreamWrapper> controlL_routingstream = Create<OutputStreamWrapper> (&controlL_stream);
+    // controlL_ipv4->GetRoutingProtocol ()->PrintRoutingTable (controlL_routingstream);
+    // NS_LOG_INFO("route table infomation\n" << controlL_stream.str());
 
 
     //CreateSocket
@@ -450,10 +472,9 @@ main(int argc, char *argv[])
                     InetSocketAddress(ControlLeftInterface[0].GetAddress(1),receivePort),
                     receivePort,
                     controlLeftChildrenInterfaces);
-    
     ControlLeftNode.Get(0)->AddApplication(controlLApp);
-    controlLApp->SetStartTime(Seconds(1.));
-    controlLApp->SetStopTime(Seconds(20.));
+    controlLApp->SetStartTime(Seconds(0.));
+    controlLApp->SetStopTime(Seconds(2150.));
 
     Ptr<ControlApp> controlApp = CreateObject<ControlApp> ();
     controlApp->SetAttribute("Local",AddressValue(InetSocketAddress(ControlInterface[0].GetAddress(0),sendPort)));
@@ -470,31 +491,110 @@ main(int argc, char *argv[])
                     receivePort,
                     controlChildrenInterfaces);
     ControlNode.Get(0)->AddApplication(controlApp);
-    controlApp->SetStartTime(Seconds(1.));
-    controlApp->SetStopTime(Seconds(20.));
+    controlApp->SetStartTime(Seconds(0.));
+    controlApp->SetStopTime(Seconds(2150.));
 
+    std::ofstream out;
+    for(uint32_t i = 0; i < Ap;i++){
+        for(uint32_t j = 0; j < nodeofAp ; j++ ){
+            std::stringstream ss;
+            ss<<"ApNode"<<i<<"EdgeNode"<<j<<".txt";
+            out.open(ss.str(),std::ofstream::trunc);
+            out<<"No.\tMAC Protocol\tSendTime\tReceiveTime\tSource\tDestination\tLength\tRtt\n";
+            out.close();
+        }
+    }
+
+    // EdgeApp
+    std::vector<std::vector<Ptr<EdgeApp>> > StaApps;
+   
+
+    StaApps.resize(Ap);
+    for(i = 0; i < Ap;i++){
+        j = 0;
+        Ptr<EdgeApp> app = CreateObject<EdgeApp> ();
+        app->Setup(i,j,nodeInterfaces[i][j],sendPort,receivePort,ApInterfaces[i],receivePort,976,100000,DataRate("1.5Mbps"));
+        app->SetAttribute("Local",AddressValue(InetSocketAddress(stacsmaInterface[i].GetAddress(j),sendPort)));
+        app->SetAttribute("sendPort",UintegerValue(sendPort));
+        app->SetAttribute("receivePort",UintegerValue(receivePort));
+        app->SetAttribute("Report",BooleanValue(true));
+        app->SetAttribute("SendStart",BooleanValue(false));
+        wifiStaNodes[i].Get(j)->AddApplication(app);
+        app->SetStartTime(Seconds (0));
+        app->SetStopTime(Seconds (2100.1));
+        StaApps[i].push_back(app);
+    }
     
 
+    for(i = 0; i < Ap;i++){
+        j = 1;
+        Ptr<EdgeApp> app = CreateObject<EdgeApp> ();
+        app->Setup(i,j,nodeInterfaces[i][j],sendPort,receivePort,ApInterfaces[i],receivePort,976,100000,DataRate("1.5Mbps"));
+        app->SetAttribute("Local",AddressValue(InetSocketAddress(stacsmaInterface[i].GetAddress(j),sendPort)));
+        app->SetAttribute("sendPort",UintegerValue(sendPort));
+        app->SetAttribute("receivePort",UintegerValue(receivePort));
+        app->SetAttribute("Report",BooleanValue(true));
+        app->SetAttribute("SendStart",BooleanValue(false));
+        wifiStaNodes[i].Get(j)->AddApplication(app);
+        app->SetStartTime(Seconds (0));
+        app->SetStopTime(Seconds (300.1));
+        // StaApps[i].push_back(app);
+        
+        Ptr<EdgeApp> app1 = CreateObject<EdgeApp> ();
+        app1->Setup(i,j,nodeInterfaces[i][j],sendPort,receivePort,ApInterfaces[i],receivePort,976,100000,DataRate("1.5Mbps"));
+        app1->SetAttribute("Local",AddressValue(InetSocketAddress(stacsmaInterface[i].GetAddress(j),sendPort)));
+        app1->SetAttribute("sendPort",UintegerValue(sendPort));
+        app1->SetAttribute("receivePort",UintegerValue(receivePort));
+        app1->SetAttribute("Report",BooleanValue(true));
+        wifiStaNodes[i].Get(j)->AddApplication(app1);
+        app1->SetStartTime(Seconds (600));
+        app1->SetStopTime(Seconds (900.1));
 
-    // // EdgeApp
-    // std::vector<std::vector<Ptr<EdgeApp>> > StaApps;
+        Ptr<EdgeApp> app2 = CreateObject<EdgeApp> ();
+        app2->Setup(i,j,nodeInterfaces[i][j],sendPort,receivePort,ApInterfaces[i],receivePort,976,100000,DataRate("1.5Mbps"));
+        app2->SetAttribute("Local",AddressValue(InetSocketAddress(stacsmaInterface[i].GetAddress(j),sendPort)));
+        app2->SetAttribute("sendPort",UintegerValue(sendPort));
+        app2->SetAttribute("receivePort",UintegerValue(receivePort));
+        app2->SetAttribute("Report",BooleanValue(true));
+        wifiStaNodes[i].Get(j)->AddApplication(app2);
+        app2->SetStartTime(Seconds (1500));
+        app2->SetStopTime(Seconds (2100.1));
+    }
 
-    // StaApps.resize(Ap);
-    // for(i = 0; i < Ap;i++){
-    //     for(uint32_t j = 0; j < nodeofAp; j++){
-    //         Ptr<EdgeApp> app = CreateObject<EdgeApp> ();
-    //         app->Setup(i,j,nodeInterfaces[i][j],sendPort,receivePort,ApInterfaces[i],receivePort,1024,1024,DataRate("1Mbps"));
-    //         app->SetAttribute("Local",AddressValue(InetSocketAddress(statdmaInterface[i].GetAddress(j),sendPort)));
-    //         app->SetAttribute("sendPort",UintegerValue(sendPort));
-    //         app->SetAttribute("receivePort",UintegerValue(receivePort));
-    //         app->SetAttribute("Report",BooleanValue(true));
-    //         wifiStaNodes[i].Get(j)->AddApplication(app);
-    //         app->SetStartTime(Seconds (1));
-    //         app->SetStopTime(Seconds (20));
-    //         StaApps[i].push_back(app);
-    //     }
-    // }
+    for(i = 0; i < Ap;i++){
+        j = 2;
+        Ptr<EdgeApp> app = CreateObject<EdgeApp> ();
+        app->Setup(i,j,nodeInterfaces[i][j],sendPort,receivePort,ApInterfaces[i],receivePort,976,100000,DataRate("1.5Mbps"));
+        app->SetAttribute("Local",AddressValue(InetSocketAddress(stacsmaInterface[i].GetAddress(j),sendPort)));
+        app->SetAttribute("sendPort",UintegerValue(sendPort));
+        app->SetAttribute("receivePort",UintegerValue(receivePort));
+        app->SetAttribute("Report",BooleanValue(true));
+        app->SetAttribute("SendStart",BooleanValue(false));
+        wifiStaNodes[i].Get(j)->AddApplication(app);
+        app->SetStartTime(Seconds (0));
+        app->SetStopTime(Seconds (300.1));
+        // StaApps[i].push_back(app);
 
+        Ptr<EdgeApp> app1 = CreateObject<EdgeApp> ();
+        app1->Setup(i,j,nodeInterfaces[i][j],sendPort,receivePort,ApInterfaces[i],receivePort,976,100000,DataRate("1.5Mbps"));
+        app1->SetAttribute("Local",AddressValue(InetSocketAddress(stacsmaInterface[i].GetAddress(j),sendPort)));
+        app1->SetAttribute("sendPort",UintegerValue(sendPort));
+        app1->SetAttribute("receivePort",UintegerValue(receivePort));
+        app1->SetAttribute("Report",BooleanValue(true));
+        wifiStaNodes[i].Get(j)->AddApplication(app1);
+        app1->SetStartTime(Seconds (900));
+        app1->SetStopTime(Seconds (1200.1));
+
+        Ptr<EdgeApp> app2 = CreateObject<EdgeApp> ();
+        app2->Setup(i,j,nodeInterfaces[i][j],sendPort,receivePort,ApInterfaces[i],receivePort,976,100000,DataRate("1.5Mbps"));
+        app2->SetAttribute("Local",AddressValue(InetSocketAddress(stacsmaInterface[i].GetAddress(j),sendPort)));
+        app2->SetAttribute("sendPort",UintegerValue(sendPort));
+        app2->SetAttribute("receivePort",UintegerValue(receivePort));
+        app2->SetAttribute("Report",BooleanValue(true));
+        wifiStaNodes[i].Get(j)->AddApplication(app2);
+        app2->SetStartTime(Seconds (1800));
+        app2->SetStopTime(Seconds (2100.1));
+    }
 
 
     // SenseApp
@@ -523,14 +623,14 @@ main(int argc, char *argv[])
         senseapp->SetAttribute("sendPort",UintegerValue(sendPort));
         senseapp->SetAttribute("receivePort",UintegerValue(receivePort));
         wifiApNodes.Get(i)->AddApplication(senseapp);
-        senseapp->SetStartTime(Seconds(1));
-        senseapp->SetStopTime(Seconds(20.));
+        senseapp->SetStartTime(Seconds(0));
+        senseapp->SetStopTime(Seconds(2150.0));
         SenseApps.push_back(senseapp);
     }
 
     // Ipv4GlobalRoutingHelper::PopulateRoutingTables();   
     std::cout<<"================Start Simulation======"<<std::endl;
-    Simulator::Stop(Seconds (20.0));
+    Simulator::Stop(Seconds (2150.1));
 
     Simulator::Run();
     Simulator::Destroy();

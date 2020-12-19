@@ -58,6 +58,7 @@ namespace ns3 {
         m_usingtdmas(),
         m_updates(),         //all node metrics is update?
         m_actions(),
+        m_weekup(),
         m_rti(5),
         m_period(10),        // report period
         m_report(true)   //is report
@@ -87,7 +88,7 @@ namespace ns3 {
         m_actions.resize(m_childNum,0);
         m_usingtdmas.resize(m_childNum,false);
         m_metrics.resize(m_childNum,0);
-        
+        m_weekup.resize(m_childNum,1);
     };
 
     void
@@ -112,7 +113,7 @@ namespace ns3 {
 
     void
     SenseApp::StopApplication(void){
-
+        NS_LOG_INFO("Ap Node " << m_index << " stop Sense Application!!!");
     }
 
     void
@@ -137,9 +138,9 @@ namespace ns3 {
         while((packet = socket->RecvFrom(from)))
         {   
             
-            NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s Ap Node "<<m_index<<" received " << packet->GetSize () << " bytes from " <<
-                       InetSocketAddress::ConvertFrom (from).GetIpv4 () << " port " <<
-                       InetSocketAddress::ConvertFrom (from).GetPort ());
+            // NS_LOG_INFO ("At time " << Simulator::Now ().GetSeconds () << "s Ap Node "<<m_index<<" received " << packet->GetSize () << " bytes from " <<
+            //            InetSocketAddress::ConvertFrom (from).GetIpv4 () << " port " <<
+            //            InetSocketAddress::ConvertFrom (from).GetPort ());
             if(packet->GetSize() > 0)
             {
                 EdgeTag tag;
@@ -164,8 +165,6 @@ namespace ns3 {
                     Time time(Simulator::Now());
                     m_upTime = time.GetMilliSeconds()-header.GetData();
                     
-                    
-
                     Ptr<Packet> pac = Create<Packet> (0);
                     EdgeTag tag;
                     tag.SetTagValue(0);
@@ -178,12 +177,10 @@ namespace ns3 {
                     // set uplink time
                     SeqTsSizeHeader header1;
                     header1.SetSeq(m_upTime);
-                    
-
+                
                     // set downlink send time
                     TimeHeader header2;
                     header2.SetData(Simulator::Now().GetMilliSeconds());
-                    
                     
                     pac->AddHeader(header2);
                     pac->AddHeader(header1);
@@ -192,7 +189,7 @@ namespace ns3 {
                     socket->SendTo(pac,0,from);
                 }else if(tag.GetTagValue() == 1) //uplink metrics packet
                 {
-                    
+                    // NS_LOG_INFO("Receive uplink metrics");
                     SeqTsSizeHeader nodeNum,metrics,usingtdma;
                     packet->RemoveHeader(nodeNum);
                     packet->RemoveHeader(metrics);
@@ -211,16 +208,67 @@ namespace ns3 {
                     packet->RemoveHeader(nums);
                   
                     uint32_t m_nums= nums.GetSeq();
-                    std::cout<<m_nums<<std::endl;
                     std::vector<SeqTsSizeHeader> headers(m_nums);
                     for(uint32_t i = 0;i < m_nums;i++){
                         packet->RemoveHeader(headers[i]);
                         m_actions[i] = headers[i].GetSeq();
-                        SendToChild(m_sendSocket,i,InetSocketAddress(m_childs.GetAddress(i),m_localPort),2);
-                    }            
-                }
-            }
+                        if(m_weekup[i] == 1){
+                            // std::cout<<"Ap Node"<<m_index<<" children index "<<i<<" action is "<< m_actions[i] <<" (0:tdma,1:csma)"<<std::endl;
+                            SendToChild(m_sendSocket,i,InetSocketAddress(m_childs.GetAddress(i),m_peerPort),2);
+                        }                        
+                    }     
+                           
+                }else if(tag.GetTagValue() == 4){   //report children node is weekup or sleep
+                    SeqTsSizeHeader ts;
+                    packet->RemoveHeader(ts);
+                    uint32_t child_index = ts.GetSeq();
+                    SeqTsSizeHeader state;
+                    packet->RemoveHeader(state);
+                    uint32_t child_state = state.GetSeq();
+                    if(child_state == 0){
+                        m_weekup[child_index] = 0;
+                        m_usingtdmas[child_index] = false;
+                        m_metrics[child_index] = 0;
+                    }else{
+                        m_weekup[child_index] = 1;
+                        m_usingtdmas[child_index] = false;
+                        m_metrics[child_index] = 0;
+                    }
 
+                    Ptr<Packet> pac = Create<Packet> (0);
+                    EdgeTag tag;
+                    tag.SetTagValue(4);
+                    pac->AddPacketTag(tag);
+                    
+                    // set ap Node index
+                    SeqTsSizeHeader ApNode;
+                    ApNode.SetSeq(m_index);
+                    // set edge node index
+                    SeqTsSizeHeader EdgeNode;
+                    EdgeNode.SetSeq(child_index);
+                    // set state
+                    SeqTsSizeHeader State;
+                    State.SetSeq(m_weekup[child_index]);
+                    
+                    pac->AddHeader(State);
+                    pac->AddHeader(EdgeNode);
+                    pac->AddHeader(ApNode);
+                    // NS_LOG_INFO("Send to father: children node state!! "<< child_state << " 0: sleep,1:weekup");
+                    socket->SendTo(pac,0,m_fatherControl);
+                }else if (tag.GetTagValue() == 5) { //download restart control
+                    SeqTsSizeHeader edgeindex;
+                    packet->RemoveHeader(edgeindex);
+                    uint32_t  edge_index = edgeindex.GetSeq();
+
+                    SeqTsSizeHeader action;
+                    packet->RemoveHeader(action);
+                    uint32_t Action = action.GetSeq();
+
+                    m_actions[edge_index] = Action;
+                    // std::cout<<"SenseApp::Tag==5--Ap Node"<<m_index<<" children index "<<edge_index<<" action is "<< m_actions[edge_index] <<" (0:tdma,1:csma)"<<std::endl;
+                    SendToChild(m_sendSocket,edge_index,InetSocketAddress(m_childs.GetAddress(edge_index),m_peerPort),2);
+                } 
+            }
         }
     }
 
@@ -248,7 +296,7 @@ namespace ns3 {
     bool 
     SenseApp::collectAll(){
         for(uint32_t i = 0;i < m_childNum;i++){
-            if(m_updates[i] == false)
+            if(m_updates[i] == false && m_weekup[i] == 1)
                 return false;
         }
         return true;
@@ -263,7 +311,7 @@ namespace ns3 {
     SenseApp::SendMetrics()
     {   
         if(collectAll()){
-            std::cout<<"SenseApp Collect All"<<std::endl;
+            // std::cout<<"SenseApp Collect All"<<std::endl;
             if(m_temp.IsRunning())
                 Simulator::Cancel(m_temp);
             Ptr<Packet> pac = Create<Packet>(0);

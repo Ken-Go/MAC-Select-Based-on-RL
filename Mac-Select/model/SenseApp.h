@@ -52,7 +52,8 @@ private:
     std::vector<uint64_t> m_metrics;    //the metrics of nodes which is belong to this ap node.
     std::vector<bool> m_usingtdmas;     //all the node is using tdma? 
     std::vector<bool> m_updates;        //is update?
-    std::vector<uint32_t> m_actions;    //remember the action 
+    std::vector<uint32_t> m_actions;    //remember the action
+    std::vector<uint32_t> m_weekup;     //child node is weekup?
     
     //app configure set
     uint32_t m_rti;                     // report time interval

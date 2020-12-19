@@ -43,6 +43,7 @@ public:
     double alpha;   //learning rate
     std::vector<std::vector<double> >  m_qtable;
     uint32_t choose_action();
+    uint32_t choose_action_random();
     uint32_t argmax(uint32_t line);
     bool is_Line_Zero(uint32_t line);
     double Reward();
@@ -52,6 +53,7 @@ public:
 };
 QLearn::QLearn()
 { 
+    srand(time(0));
     actions = 2;
     states = 2;
     Action.push_back(0);
@@ -89,10 +91,20 @@ uint32_t QLearn::argmax(uint32_t line){
     return index;
 }
 
+uint32_t QLearn::choose_action_random(){
+    uint32_t action_name;
+    int index = rand()%m_qtable[now_state].size();
+    action_name = Action[index];
+    take_action = action_name;
+    next_state = action_name;
+    return action_name;
+}
+
 uint32_t QLearn::choose_action()
 {
     uint32_t action_name;
-    srand(time(0));
+    //can't use srand(time(0)), it causes rand() create the same number;
+    //srand(time(0));
     double random = rand()%(10000)/(float)(10000);
     if(random > epsilon || is_Line_Zero(now_state)){
         int index = rand()%m_qtable[now_state].size();
@@ -134,6 +146,7 @@ private:
     std::vector<std::vector<uint32_t> >  m_metrics;
     std::vector<std::vector<uint32_t> > m_states;
     std::vector<std::vector<uint32_t> > m_lastMetrics;
+    std::vector<std::vector<uint32_t> > m_WeekUp;
     uint32_t m_apnum;
     uint32_t m_edgenum;
     uint32_t m_allnum;
@@ -149,11 +162,13 @@ private:
     
 
     EventId  m_updataEvent;
+    EventId  m_reportTimeEvent;
     uint32_t m_count;
     
 
     virtual void StartApplication(void);
     virtual void StopApplication(void);
+    void ReportTime();
     void HandleRead (Ptr<Socket> socket);
     void SendControl(Ptr<Socket> socket,uint32_t apIndex);
     void SendControl(Ptr<Socket> socket,uint32_t apIndex,Address from);

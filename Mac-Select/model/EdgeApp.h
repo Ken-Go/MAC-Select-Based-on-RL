@@ -40,6 +40,7 @@ public:
     virtual ~EdgeApp();
     void Setup(uint32_t fatherIndex,uint32_t index,Ipv4InterfaceContainer locals, uint32_t localPort,uint32_t receivePort,Ipv4InterfaceContainer peers,uint32_t peerPort, uint32_t packetSize, uint32_t nPackets, DataRate dataRate);
     void CalculateRTT(uint64_t startTime,uint64_t endTime);
+    
     bool GetUsingTdma();
     TracedCallback<Ptr<const Packet>> m_rxTrace;
     TracedCallback<Ptr<const Packet>,const Address&,const Address &> m_rxTraceWithAddress;
@@ -49,6 +50,8 @@ private:
     void ScheduleTx (void);
     void ScheduleRe (void);
     void SendPacket (void);
+    void SendStart(void);
+    void SendEnd(void);
  
     void HandleRead (Ptr<Socket> socket);
     void ReportOnTime();
@@ -67,6 +70,7 @@ private:
 
     EventId         m_sendEvent;
     EventId         m_reEvent;
+   
     bool            m_running;
     uint32_t        m_packetsSent;
     uint32_t        m_packetSize;
@@ -81,6 +85,7 @@ private:
     bool m_usingtdma;               // using tdma protocal?
     bool m_change;                  // is change?
     bool m_report;                  //repoet?
+    bool m_sendStart;               //send Start;
     uint32_t m_metrxType;           // 1:latency 2:throughput 3:latency and throughput
     uint32_t m_childIndex;          //edge index
     uint32_t m_fatherIndex;         //Ap index
@@ -89,6 +94,7 @@ private:
     std::ofstream m_outStream;
     uint32_t m_packetSeq;
     std::vector<PacketInfo>  m_PacketInfos;
+
 };
 }
 #endif
